@@ -14,16 +14,13 @@ import (
 )
 
 func Run() error {
-	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
 
-	// Initialize logger
 	log := logger.New(cfg.App.Env)
 
-	// Initialize database
 	db, err := database.NewPostgres(
 		cfg.Supabase.Host,
 		cfg.Supabase.Port,
@@ -36,18 +33,24 @@ func Run() error {
 	}
 	defer db.Close()
 
-	// ── Initialize dependencies ───────────────────────────────────
+	// dependency
 	companyRepo := repository.NewCompanyRepository(db)
 	companyService := service.NewCompanyService(companyRepo, log)
 	companyHandler := handler.NewCompanyHandler(companyService)
 
-	// ── Setup HTTP server ─────────────────────────────────────────
+	userRepo := repository.NewUserRepository(db)
+	userService := service.NewUserService(userRepo, log)
+
+	// router
 	mux := http.NewServeMux()
 
-	// Setup all routes
-	routes.Setup(mux, companyHandler)
+	routes.Setup(
+		mux,
+		companyHandler,
+		cfg.Jwt.Secret,
+		userService,
+	)
 
-	// Start the server
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 	log.Info("server running on " + addr)
 

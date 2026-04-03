@@ -2,19 +2,46 @@ package routes
 
 import (
 	"net/http"
+
 	"trackly-backend/internal/handler"
+	"trackly-backend/internal/middleware"
+	"trackly-backend/internal/service"
 	"trackly-backend/pkg/httpx"
 )
 
-func Setup(mux *http.ServeMux, companyHandler *handler.CompanyHandler) {
-	setupCompanyRoutes(mux, companyHandler)
-}
+func Setup(
+	mux *http.ServeMux,
+	companyHandler *handler.CompanyHandler,
+	jwtSecret string,
+	userService service.UserService,
+) {
 
-func setupCompanyRoutes(mux *http.ServeMux, h *handler.CompanyHandler) {
-	mux.HandleFunc("GET /companies", httpx.Wrap(h.GetAll))
-	mux.HandleFunc("GET /companies/{id}", httpx.Wrap(h.GetByID))
-	mux.HandleFunc("POST /companies", httpx.Wrap(h.Create))
-	mux.HandleFunc("PUT /companies/{id}", httpx.Wrap(h.Update))
-	mux.HandleFunc("DELETE /companies/{id}", httpx.Wrap(h.Delete))
-	mux.HandleFunc("POST /companies/import", httpx.Wrap(h.Import))
+	// middleware
+	auth := middleware.AuthMiddleware(jwtSecret)
+	admin := middleware.RequireRole("admin", userService)
+
+	// ── PUBLIC ─────────────────────────────
+	mux.HandleFunc("GET /companies", httpx.Wrap(companyHandler.GetAll))
+	mux.HandleFunc("GET /companies/{id}", httpx.Wrap(companyHandler.GetByID))
+
+	// ── PROTECTED (ADMIN) ──────────────────
+	mux.Handle(
+		"POST /companies",
+		auth(admin(http.HandlerFunc(httpx.Wrap(companyHandler.Create)))),
+	)
+
+	mux.Handle(
+		"PUT /companies/{id}",
+		auth(admin(http.HandlerFunc(httpx.Wrap(companyHandler.Update)))),
+	)
+
+	mux.Handle(
+		"DELETE /companies/{id}",
+		auth(admin(http.HandlerFunc(httpx.Wrap(companyHandler.Delete)))),
+	)
+
+	mux.Handle(
+		"POST /companies/import",
+		auth(admin(http.HandlerFunc(httpx.Wrap(companyHandler.Import)))),
+	)
 }
