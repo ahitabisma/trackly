@@ -5,11 +5,32 @@ import "github.com/spf13/viper"
 type Config struct {
 	App struct {
 		Port int
+		Env  string
 	}
 
-	Database struct {
-		URI  string
-		Name string
+	Supabase struct {
+		Host string
+		Port int
+		Database string
+		User string
+		Password string
+	}
+
+	Redis struct {
+		Host     string
+		Port     int
+		Password string
+		DB       int
+	}
+
+	Jwt struct {
+		Secret    string
+		ExpiresIn string `mapstructure:"expires_in"`
+	}
+
+	RateLimit struct {
+		Requests int
+		Window   int
 	}
 }
 
