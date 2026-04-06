@@ -8,11 +8,11 @@ type Config struct {
 		Env  string
 	}
 
-	Supabase struct {
-		Host string
-		Port int
+	Database struct {
+		Host     string
+		Port     int
 		Database string
-		User string
+		User     string
 		Password string
 	}
 

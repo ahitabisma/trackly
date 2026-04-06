@@ -1,14 +1,14 @@
 app:
-  port: 3000
+  port: 8080
   env: development
 
-supabase:
-  host: hostname.supabase.co
+database:
+  host: localhost
   port: 5432
-  database: postgres
-  user: postgres
-  password: password
-  
+  database: trackly
+  user: trackly_user
+  password: your-secure-password
+
 redis:
   host: localhost
   port: 6379

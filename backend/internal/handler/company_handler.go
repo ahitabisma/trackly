@@ -50,7 +50,7 @@ func (h *CompanyHandler) GetAll(w http.ResponseWriter, r *http.Request) error {
 	// Wrap paginated result
 	paginatedResult := filter.WrapPaginated(companies, total, fq.Page, fq.Limit)
 
-	httpx.SuccessWithoutPagination(w, paginatedResult, "Success get companies")
+	httpx.SuccessWithPagination(w, paginatedResult.Data, httpx.Pagination(paginatedResult.Pagination), "Success get companies")
 	return nil
 }
 
@@ -71,7 +71,7 @@ func (h *CompanyHandler) GetByID(w http.ResponseWriter, r *http.Request) error {
 		return httpx.NewCustomError(http.StatusInternalServerError, "INTERNAL_ERROR", friendlyMsg)
 	}
 
-	httpx.SuccessWithoutPagination(w, company, "Success get company detail")
+	httpx.Success(w, company, "Success get company detail")
 	return nil
 }
 
@@ -136,7 +136,7 @@ func (h *CompanyHandler) Update(w http.ResponseWriter, r *http.Request) error {
 		return httpx.NewCustomError(http.StatusInternalServerError, "INTERNAL_ERROR", friendlyMsg)
 	}
 
-	httpx.SuccessWithoutPagination(w, company, "Company updated successfully")
+	httpx.Success(w, company, "Company updated successfully")
 	return nil
 }
 
@@ -164,7 +164,7 @@ func (h *CompanyHandler) Delete(w http.ResponseWriter, r *http.Request) error {
 		return httpx.NewCustomError(http.StatusInternalServerError, "INTERNAL_ERROR", friendlyMsg)
 	}
 
-	httpx.SuccessWithoutPagination(w, nil, "Company deleted successfully")
+	httpx.Success(w, nil, "Company deleted successfully")
 	return nil
 }
 
@@ -194,6 +194,6 @@ func (h *CompanyHandler) Import(w http.ResponseWriter, r *http.Request) error {
 	// Import companies
 	result := h.service.Import(r.Context(), importRequests)
 
-	httpx.SuccessWithoutPagination(w, result, "Import completed")
+	httpx.Success(w, result, "Import completed")
 	return nil
 }

@@ -21,12 +21,11 @@ func Run() error {
 
 	log := logger.New(cfg.App.Env)
 
-	db, err := database.NewPostgres(
-		cfg.Supabase.Host,
-		cfg.Supabase.Port,
-		cfg.Supabase.Database,
-		cfg.Supabase.User,
-		cfg.Supabase.Password,
+	db, err := database.NewDatabase(
+		cfg.Database.Host,
+		cfg.Database.Database,
+		cfg.Database.User,
+		cfg.Database.Password,
 	)
 	if err != nil {
 		return err
@@ -39,7 +38,8 @@ func Run() error {
 	companyHandler := handler.NewCompanyHandler(companyService)
 
 	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo, log)
+	userService := service.NewUserService(userRepo, log, cfg.Jwt.Secret)
+	authHandler := handler.NewAuthHandler(userService)
 
 	// router
 	mux := http.NewServeMux()
@@ -47,6 +47,7 @@ func Run() error {
 	routes.Setup(
 		mux,
 		companyHandler,
+		authHandler,
 		cfg.Jwt.Secret,
 		userService,
 	)

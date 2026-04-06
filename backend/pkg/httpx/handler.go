@@ -10,16 +10,19 @@ func Wrap(fn HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := fn(w, r)
 		if err != nil {
-			if validationErr, ok := err.(*ValidationErrorWrapper); ok {
-				ValidationError(w, validationErr.Message, validationErr.FieldErrors)
+			// Handle Validation Error
+			if vErr, ok := err.(*ValidationErrorWrapper); ok {
+				ValidationError(w, vErr.Message, vErr.FieldErrors)
 				return
 			}
 
-			if customErr, ok := err.(*CustomError); ok {
-				Error(w, customErr.StatusCode, customErr.Code, customErr.Message)
+			// Handle Custom Error (Unauthorized, Not Found, etc)
+			if cErr, ok := err.(*CustomError); ok {
+				Error(w, cErr.StatusCode, cErr.Code, cErr.Message)
 				return
 			}
 
+			// Fallback Internal Error
 			InternalError(w, "An unexpected error occurred")
 		}
 	}

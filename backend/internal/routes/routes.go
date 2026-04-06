@@ -12,6 +12,7 @@ import (
 func Setup(
 	mux *http.ServeMux,
 	companyHandler *handler.CompanyHandler,
+	authHandler *handler.AuthHandler,
 	jwtSecret string,
 	userService service.UserService,
 ) {
@@ -21,6 +22,7 @@ func Setup(
 	admin := middleware.RequireRole("admin", userService)
 
 	// ── PUBLIC ─────────────────────────────
+	mux.HandleFunc("POST /login", httpx.Wrap(authHandler.Login))
 	mux.HandleFunc("GET /companies", httpx.Wrap(companyHandler.GetAll))
 	mux.HandleFunc("GET /companies/{id}", httpx.Wrap(companyHandler.GetByID))
 
