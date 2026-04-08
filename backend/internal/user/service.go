@@ -14,8 +14,8 @@ func NewUserService(repo UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
-func (s *UserService) GetUserProfile(id uint) (*UserResponse, *httpx.AppError) {
-	u, err := s.repo.FindByID(id)
+func (s *UserService) GetUserProfile(ctx context.Context, id uint) (*UserResponse, *httpx.AppError) {
+	u, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, &httpx.AppError{
 			Code:   httpx.ErrInvalidCredentials,

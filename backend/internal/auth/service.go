@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"trackly-backend/internal/user"
 	"trackly-backend/pkg/httpx"
 )
@@ -17,9 +18,9 @@ func NewAuthService(userRepo user.UserRepository, jwtSvc *JwtService) *AuthServi
 	}
 }
 
-func (s *AuthService) Register(req *RegisterRequest) *httpx.AppError {
+func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*user.User, *httpx.AppError) {
 	if req.Email == "" {
-		return &httpx.AppError{
+		return nil, &httpx.AppError{
 			Code: httpx.ErrValidation,
 			Fields: map[string]string{
 				"email": "email is required",
@@ -27,9 +28,9 @@ func (s *AuthService) Register(req *RegisterRequest) *httpx.AppError {
 		}
 	}
 
-	existingUser, _ := s.userRepo.FindByEmail(req.Email)
+	existingUser, _ := s.userRepo.FindByEmail(ctx, req.Email)
 	if existingUser != nil {
-		return &httpx.AppError{
+		return nil, &httpx.AppError{
 			Code: httpx.ErrValidation,
 			Fields: map[string]string{
 				"email": "email already in use",
@@ -39,7 +40,7 @@ func (s *AuthService) Register(req *RegisterRequest) *httpx.AppError {
 
 	hash, err := HashPassword(req.Password)
 	if err != nil {
-		return &httpx.AppError{
+		return nil, &httpx.AppError{
 			Code:   httpx.ErrInternal,
 			Detail: "failed to hash password",
 		}
@@ -52,18 +53,19 @@ func (s *AuthService) Register(req *RegisterRequest) *httpx.AppError {
 		Role:     "user",
 	}
 
-	if err := s.userRepo.Create(user); err != nil {
-		return &httpx.AppError{
+	u, err := s.userRepo.Create(ctx, user)
+	if err != nil {
+		return nil, &httpx.AppError{
 			Code:   httpx.ErrInternal,
 			Detail: err.Error(),
 		}
 	}
 
-	return nil
+	return u, nil
 }
 
-func (s *AuthService) Login(req *LoginRequest) (*LoginResponse, *httpx.AppError) {
-	u, err := s.userRepo.FindByEmail(req.Email)
+func (s *AuthService) Login(ctx context.Context, req *LoginRequest) (*LoginResponse, *httpx.AppError) {
+	u, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, &httpx.AppError{
 			Code: httpx.ErrInvalidCredentials,

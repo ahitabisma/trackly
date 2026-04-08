@@ -16,7 +16,7 @@ func AuthMiddleware(jwtSvc *auth.JwtService, log *logrus.Logger) func(http.Handl
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				resp := httpx.Error(httpx.ErrValidation, "missing authorization header", "")
+				resp := httpx.Error(httpx.ErrUnauthorized, "Missing authorization header", "")
 				customLogger.LogHTTPError(log, resp, map[string]interface{}{
 					"path": r.RequestURI,
 				})
@@ -26,7 +26,7 @@ func AuthMiddleware(jwtSvc *auth.JwtService, log *logrus.Logger) func(http.Handl
 
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				resp := httpx.Error(httpx.ErrValidation, "invalid authorization header format", "")
+				resp := httpx.Error(httpx.ErrUnauthorized, "Invalid authorization header format", "")
 				customLogger.LogHTTPError(log, resp, map[string]interface{}{
 					"path": r.RequestURI,
 				})
@@ -36,7 +36,7 @@ func AuthMiddleware(jwtSvc *auth.JwtService, log *logrus.Logger) func(http.Handl
 
 			claims, err := jwtSvc.ValidateToken(parts[1])
 			if err != nil {
-				resp := httpx.Error(httpx.ErrValidation, "invalid or expired token", err.Error())
+				resp := httpx.Error(httpx.ErrUnauthorized, "Invalid or expired token", err.Error())
 				customLogger.LogHTTPError(log, resp, map[string]interface{}{
 					"path": r.RequestURI,
 				})

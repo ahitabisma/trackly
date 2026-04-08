@@ -53,7 +53,7 @@ func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, appErr := h.service.GetUserProfile(uint(userID))
+	res, appErr := h.service.GetUserProfile(r.Context(), uint(userID))
 	if appErr != nil {
 		if appErr.Code == httpx.ErrInvalidCredentials {
 			resp := httpx.Error(appErr.Code, "User not found", appErr.Detail)
@@ -78,6 +78,7 @@ func (h *UserHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	})
 	httpx.WriteJSON(w, r, http.StatusOK, resp)
 }
+
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		resp := httpx.Error(httpx.ErrValidation, "Method not allowed", "")

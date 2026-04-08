@@ -8,6 +8,8 @@ const (
 	ErrInvalidCredentials ErrorCode = "INVALID_CREDENTIALS"
 	ErrValidation         ErrorCode = "VALIDATION_ERROR"
 	ErrForbidden          ErrorCode = "FORBIDDEN"
+	ErrConflict           ErrorCode = "CONFLICT"
+	ErrUnauthorized       ErrorCode = "UNAUTHORIZED"
 )
 
 type ErrorResponse struct {

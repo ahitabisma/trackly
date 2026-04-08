@@ -54,7 +54,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Register(&req); err != nil {
+	u, err := h.service.Register(r.Context(), &req)
+	if err != nil {
 		if err.Code == httpx.ErrValidation {
 			resp := httpx.ValidationError(err.Fields)
 			customLogger.LogHTTPError(h.log, resp, map[string]interface{}{
@@ -72,7 +73,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := httpx.Success(nil, "User created successfully")
+	resp := httpx.Success(u, "User created successfully")
 	customLogger.LogHTTPSuccess(h.log, resp, map[string]interface{}{
 		"email": req.Email,
 	})
@@ -110,7 +111,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.service.Login(&req)
+	res, err := h.service.Login(r.Context(), &req)
 	if err != nil {
 		if err.Code == httpx.ErrInvalidCredentials {
 			resp := httpx.Error(err.Code, "Invalid email or password", err.Detail)

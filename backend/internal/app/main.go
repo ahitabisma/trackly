@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"trackly-backend/internal/auth"
+	"trackly-backend/internal/company"
 	"trackly-backend/internal/user"
 	"trackly-backend/pkg/config"
 	"trackly-backend/pkg/database"
@@ -40,6 +41,7 @@ func Run() error {
 
 	// repos
 	userRepo := user.NewUserRepository(db)
+	companyRepo := company.NewCompanyRepository(db)
 
 	// jwt
 	jwtService := auth.NewJwtService(
@@ -51,10 +53,12 @@ func Run() error {
 	// services
 	authService := auth.NewAuthService(userRepo, jwtService)
 	userService := user.NewUserService(userRepo)
+	companyService := company.NewCompanyService(companyRepo, log)
 
 	// handlers
 	authHandler := auth.NewAuthHandler(authService, log)
 	userHandler := user.NewUserHandler(userService, log)
+	companyHandler := company.NewCompanyHandler(companyService, log)
 
 	// middleware
 	authMiddleware := middleware.AuthMiddleware(jwtService, log)
@@ -70,6 +74,7 @@ func Run() error {
 	// routes
 	auth.SetupAuthRoutes(mux, authHandler)
 	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
+	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
 
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 
