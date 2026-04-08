@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -9,10 +10,34 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// CustomFormatter adalah custom formatter untuk logrus
+type CustomFormatter struct{}
+
+// Format mengimplementasikan logrus.Formatter interface
+func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	logData := map[string]interface{}{
+		"level": entry.Level.String(),
+		"time":  entry.Time.Format(time.RFC3339),
+	}
+
+	// Jika ada fields, serialize sebagai JSON di msg field
+	if len(entry.Data) > 0 {
+		msgData := entry.Data
+		msgBytes, _ := json.Marshal(msgData)
+		logData["msg"] = string(msgBytes)
+	} else {
+		logData["msg"] = entry.Message
+	}
+
+	output, _ := json.Marshal(logData)
+	output = append(output, '\n')
+	return output, nil
+}
+
 func New(env string) *logrus.Logger {
 	log := logrus.New()
 
-	log.SetFormatter(&logrus.JSONFormatter{})
+	log.SetFormatter(&CustomFormatter{})
 
 	date := time.Now().Format("2006-01-02")
 

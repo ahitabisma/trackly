@@ -1,11 +1,20 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"trackly-backend/internal/auth"
+	"trackly-backend/internal/user"
 	"trackly-backend/pkg/config"
 	"trackly-backend/pkg/database"
 	"trackly-backend/pkg/logger"
+	"trackly-backend/pkg/middleware"
 )
 
 func Run() error {
@@ -25,21 +34,66 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 
 	// router
 	mux := http.NewServeMux()
 
-	// routes.Setup(
-	// 	mux,
-	// 	companyHandler,
-	// 	authHandler,
-	// 	cfg.Jwt.Secret,
-	// 	userService,
-	// )
+	// repos
+	userRepo := user.NewUserRepository(db)
+
+	// jwt
+	jwtService := auth.NewJwtService(
+		cfg.Jwt.Secret,
+		cfg.App.Name,
+		cfg.Jwt.Audience,
+	)
+
+	// services
+	authService := auth.NewAuthService(userRepo, jwtService)
+	userService := user.NewUserService(userRepo)
+
+	// handlers
+	authHandler := auth.NewAuthHandler(authService, log)
+	userHandler := user.NewUserHandler(userService, log)
+
+	// middleware
+	authMiddleware := middleware.AuthMiddleware(jwtService, log)
+
+	// Admin middleware chain
+	adminMiddleware := func(next http.Handler) http.Handler {
+		return middleware.ChainMiddleware(
+			authMiddleware,
+			middleware.RoleMiddleware("admin")(log),
+		)(next)
+	}
+
+	// routes
+	auth.SetupAuthRoutes(mux, authHandler)
+	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
 
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
+
+	server := &http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+
 	log.Info("server running on " + addr)
 
-	return http.ListenAndServe(addr, mux)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error(err.Error())
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Info("shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return server.Shutdown(ctx)
 }

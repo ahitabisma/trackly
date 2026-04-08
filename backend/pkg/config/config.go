@@ -4,6 +4,7 @@ import "github.com/spf13/viper"
 
 type Config struct {
 	App struct {
+		Name string
 		Port int
 		Env  string
 	}
@@ -26,6 +27,7 @@ type Config struct {
 	Jwt struct {
 		Secret    string
 		ExpiresIn string `mapstructure:"expires_in"`
+		Audience  string
 	}
 
 	RateLimit struct {
