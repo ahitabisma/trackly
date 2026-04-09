@@ -274,12 +274,6 @@
 </template>
 
 <script setup lang="ts">
-declare module 'nuxt/app' {
-    interface NuxtLayouts {
-        'main': unknown
-    }
-}
-
 definePageMeta({
     layout: 'main',
 })
