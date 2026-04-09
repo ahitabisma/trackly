@@ -10,11 +10,14 @@ type Config struct {
 	}
 
 	Database struct {
-		Host     string
-		Port     int
-		Database string
-		User     string
-		Password string
+		Host            string
+		Port            int
+		Database        string
+		User            string
+		Password        string
+		MaxOpenConns    int `mapstructure:"max_open_conns"`
+		MaxIdleConns    int `mapstructure:"max_idle_conns"`
+		ConnMaxLifetime int `mapstructure:"conn_max_lifetime"`
 	}
 
 	Redis struct {

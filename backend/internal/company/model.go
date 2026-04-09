@@ -3,7 +3,7 @@ package company
 import "time"
 
 type Company struct {
-	ID                int        `gorm:"primaryKey"`
+	ID                uint       `gorm:"primaryKey"`
 	Kode              string     `gorm:"type:varchar(10);uniqueIndex;not null"`
 	NamaPerusahaan    string     `gorm:"type:varchar(255);not null"`
 	TanggalPencatatan *time.Time `gorm:"type:date;null"`

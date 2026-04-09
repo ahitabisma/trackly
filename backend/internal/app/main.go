@@ -11,9 +11,12 @@ import (
 
 	"trackly-backend/internal/auth"
 	"trackly-backend/internal/company"
+	"trackly-backend/internal/investor"
+	"trackly-backend/internal/shareholding"
 	"trackly-backend/internal/user"
 	"trackly-backend/pkg/config"
 	"trackly-backend/pkg/database"
+	"trackly-backend/pkg/jobs"
 	"trackly-backend/pkg/logger"
 	"trackly-backend/pkg/middleware"
 )
@@ -26,15 +29,42 @@ func Run() error {
 
 	log := logger.New(cfg.App.Env)
 
+	connLifeTime := time.Duration(cfg.Database.ConnMaxLifetime) * time.Minute
 	db, err := database.NewDatabase(
 		cfg.Database.Host,
 		cfg.Database.Database,
 		cfg.Database.User,
 		cfg.Database.Password,
+		cfg.Database.MaxOpenConns,
+		cfg.Database.MaxIdleConns,
+		connLifeTime,
 	)
 	if err != nil {
 		return err
 	}
+
+	// Redis client
+	redisClient := database.NewRedisClient(
+		cfg.Redis.Host,
+		cfg.Redis.Port,
+		cfg.Redis.Password,
+		cfg.Redis.DB,
+	)
+
+	// Test Redis connection
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		return err
+	}
+
+	// Job queue and worker
+	jobQueue := jobs.NewRedisQueue(redisClient)
+	jobWorker := jobs.NewWorker(jobQueue, 10, log)
+
+	// Register job handlers
+	jobWorker.RegisterHandler(jobs.JobTypeShareholdingImport, shareholding.NewShareholdingImportJobHandler(
+		shareholding.NewShareHoldingService(company.NewCompanyRepository(db), investor.NewInvestorRepository(db), shareholding.NewShareholdingRepository(db), log),
+		log,
+	))
 
 	// router
 	mux := http.NewServeMux()
@@ -42,6 +72,8 @@ func Run() error {
 	// repos
 	userRepo := user.NewUserRepository(db)
 	companyRepo := company.NewCompanyRepository(db)
+	investorRepo := investor.NewInvestorRepository(db)
+	shareHoldingRepo := shareholding.NewShareholdingRepository(db)
 
 	// jwt
 	jwtService := auth.NewJwtService(
@@ -54,11 +86,13 @@ func Run() error {
 	authService := auth.NewAuthService(userRepo, jwtService)
 	userService := user.NewUserService(userRepo)
 	companyService := company.NewCompanyService(companyRepo, log)
+	shareHoldingService := shareholding.NewShareHoldingService(companyRepo, investorRepo, shareHoldingRepo, log)
 
 	// handlers
 	authHandler := auth.NewAuthHandler(authService, log)
 	userHandler := user.NewUserHandler(userService, log)
 	companyHandler := company.NewCompanyHandler(companyService, log)
+	shareHoldingHandler := shareholding.NewShareholdingHandlerWithQueue(shareHoldingService, jobQueue, log)
 
 	// middleware
 	authMiddleware := middleware.AuthMiddleware(jwtService, log)
@@ -75,7 +109,7 @@ func Run() error {
 	auth.SetupAuthRoutes(mux, authHandler)
 	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
 	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
-
+	shareholding.SetupShareholdingRoutes(mux, shareHoldingHandler, adminMiddleware)
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 
 	server := &http.Server{
@@ -84,6 +118,10 @@ func Run() error {
 	}
 
 	log.Info("server running on " + addr)
+
+	// Start job worker
+	ctx, cancel := context.WithCancel(context.Background())
+	jobWorker.Start(ctx)
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -97,8 +135,17 @@ func Run() error {
 
 	log.Info("shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// Stop job worker
+	cancel()
+	jobWorker.Stop()
 
-	return server.Shutdown(ctx)
+	// Close Redis connection
+	if err := redisClient.Close(); err != nil {
+		log.WithError(err).Error("error closing redis connection")
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	return server.Shutdown(shutdownCtx)
 }

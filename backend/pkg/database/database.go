@@ -2,12 +2,17 @@ package database
 
 import (
 	"fmt"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func NewDatabase(host, dbname, user, password string) (*gorm.DB, error) {
+func NewDatabase(
+	host, dbname, user, password string,
+	maxOpenConns, maxIdleConns int,
+	connMaxLifetime time.Duration,
+) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=5432 sslmode=require",
 		host, user, password, dbname,
@@ -17,6 +22,15 @@ func NewDatabase(host, dbname, user, password string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	sqlDb, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDb.SetMaxOpenConns(maxOpenConns)
+	sqlDb.SetMaxIdleConns(maxIdleConns)
+	sqlDb.SetConnMaxLifetime(connMaxLifetime)
 
 	return db, nil
 }

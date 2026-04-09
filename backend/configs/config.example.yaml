@@ -9,6 +9,9 @@ database:
   database: trackly
   user: trackly_user
   password: your-secure-password
+  max_open_conns: 10
+  max_idle_conns: 2
+  conn_max_lifetime: 30
 
 redis:
   host: localhost

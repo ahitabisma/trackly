@@ -3,7 +3,7 @@ package company
 import "time"
 
 type CompanyResponse struct {
-	ID                int        `json:"id"`
+	ID                uint       `json:"id"`
 	Kode              string     `json:"kode"`
 	NamaPerusahaan    string     `json:"nama_perusahaan"`
 	TanggalPencatatan *time.Time `json:"tanggal_pencatatan"`

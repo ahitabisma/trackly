@@ -15,6 +15,7 @@ type CompanyRepository interface {
 	Update(ctx context.Context, id int, req *UpdateCompanyRequest) (*Company, error)
 	Delete(ctx context.Context, id int) error
 	BulkCreate(ctx context.Context, companies []Company) ([]Company, error)
+	FindOrCreateByKode(ctx context.Context, company *Company) (*Company, error)
 }
 
 type companyRepository struct {
@@ -154,4 +155,12 @@ func (r *companyRepository) BulkCreate(ctx context.Context, companies []Company)
 	}
 
 	return companies, nil
+}
+
+func (r *companyRepository) FindOrCreateByKode(ctx context.Context, company *Company) (*Company, error) {
+	result := r.db.WithContext(ctx).
+		Where(Company{Kode: company.Kode}).
+		Attrs(company).
+		FirstOrCreate(company)
+	return company, result.Error
 }
