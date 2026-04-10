@@ -4,8 +4,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: trackly-backend
-    env_file:
-      - ./backend/.env
     ports:
       - "3001:3001"
     networks:
