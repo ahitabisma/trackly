@@ -2,6 +2,7 @@ app:
   name: Trackly Backend
   port: 8080
   env: development
+  frontend_url: http://localhost:3000
 
 database:
   host: localhost

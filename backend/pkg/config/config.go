@@ -8,9 +8,10 @@ import (
 
 type Config struct {
 	App struct {
-		Name string
-		Port int
-		Env  string
+		Name        string
+		Port        int
+		Env         string
+		FrontendURL string `mapstructure:"frontend_url"`
 	}
 
 	Database struct {

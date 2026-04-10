@@ -112,11 +112,21 @@ func Run() error {
 	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
 	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
 	shareholding.SetupShareholdingRoutes(mux, shareHoldingHandler, adminMiddleware)
+
+	// Apply CORS middleware
+	allowedOrigins := []string{
+		cfg.App.FrontendURL,
+		"http://localhost:3000",
+		"http://localhost:3001",
+	}
+	corsMiddleware := middleware.CORSMiddleware(allowedOrigins)
+	handler := corsMiddleware(mux)
+
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 
 	server := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: handler,
 	}
 
 	log.Info("server running on " + addr)
