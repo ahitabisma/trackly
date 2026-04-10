@@ -89,6 +89,7 @@ func Run() error {
 	shareHoldingService := shareholding.NewShareHoldingService(companyRepo, investorRepo, shareHoldingRepo, log)
 
 	// handlers
+	appHandler := NewAppHandler(log, cfg)
 	authHandler := auth.NewAuthHandler(authService, log)
 	userHandler := user.NewUserHandler(userService, log)
 	companyHandler := company.NewCompanyHandler(companyService, log)
@@ -106,6 +107,7 @@ func Run() error {
 	}
 
 	// routes
+	SetupAppRoutes(mux, appHandler)
 	auth.SetupAuthRoutes(mux, authHandler)
 	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
 	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
