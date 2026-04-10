@@ -42,7 +42,7 @@ export default defineNuxtConfig({
     // apiSecret: '123',
     // Keys within public are also exposed client-side
     public: {
-      apiBase: '/api',
+      apiUrl: process.env.NUXT_PUBLIC_API_URL || 'https://api-trackly.aksanara.id',
     },
   },
 })

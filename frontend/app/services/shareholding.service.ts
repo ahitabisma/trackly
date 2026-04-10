@@ -1,9 +1,15 @@
 import { $fetch } from 'ofetch';
-import { API_URL } from '~/lib/constants';
 import type { FilterParams } from '~/types/filter.type';
 import type { Response } from '~/types/response.type';
 
 export class ShareholdingService {
+    private getBaseURL(): string {
+        const url = (typeof globalThis !== 'undefined' && (globalThis as any).__API_URL__)
+            || (typeof process !== 'undefined' && process.env.NUXT_PUBLIC_API_URL)
+            || 'https://api-trackly.aksanara.id';
+        return url;
+    }
+
     async getAllShareholdings(params: FilterParams = {}): Promise<Response> {
         try {
             const queryParams = new URLSearchParams();
@@ -21,7 +27,8 @@ export class ShareholdingService {
             if (params.orderKey) queryParams.append('orderKey', params.orderKey);
             if (params.orderRule) queryParams.append('orderRule', params.orderRule);
 
-            const url = `${API_URL}/shareholdings${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+            const baseURL = this.getBaseURL();
+            const url = `${baseURL}/shareholdings${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
 
             const response = await $fetch<Response>(url, {
                 method: 'GET',

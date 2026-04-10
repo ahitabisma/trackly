@@ -1,5 +1,4 @@
 import { $fetch } from 'ofetch';
-import { API_URL } from '~/lib/constants';
 
 interface Company {
     id: number;
@@ -40,10 +39,11 @@ interface FilterParams {
 }
 
 export class CompanyService {
-    private baseURL: string;
-
-    constructor() {
-        this.baseURL = API_URL;
+    private getBaseURL(): string {
+        const url = (typeof globalThis !== 'undefined' && (globalThis as any).__API_URL__)
+            || (typeof process !== 'undefined' && process.env.NUXT_PUBLIC_API_URL)
+            || 'https://api-trackly.aksanara.id';
+        return url;
     }
 
     /**
@@ -69,7 +69,8 @@ export class CompanyService {
             // Search
             if (params.search) queryParams.append('search', params.search);
 
-            const url = `${this.baseURL}/companies${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+            const baseURL = this.getBaseURL();
+            const url = `${baseURL}/companies${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
 
             const response = await $fetch<CompanyResponse>(url, {
                 method: 'GET',
@@ -87,7 +88,8 @@ export class CompanyService {
      */
     async searchCompanies(query: string, limit: number = 10): Promise<CompanyResponse> {
         try {
-            const url = `${this.baseURL}/companies?search=${encodeURIComponent(query)}&limit=${limit}`;
+            const baseURL = this.getBaseURL();
+            const url = `${baseURL}/companies?search=${encodeURIComponent(query)}&limit=${limit}`;
 
             const response = await $fetch<CompanyResponse>(url, {
                 method: 'GET',
@@ -105,7 +107,8 @@ export class CompanyService {
      */
     async getCompanyByKode(kode: string): Promise<CompanyResponse> {
         try {
-            const url = `${this.baseURL}/companies?filters=${JSON.stringify({ kode })}`;
+            const baseURL = this.getBaseURL();
+            const url = `${baseURL}/companies?filters=${JSON.stringify({ kode })}`;
 
             const response = await $fetch<CompanyResponse>(url, {
                 method: 'GET',
