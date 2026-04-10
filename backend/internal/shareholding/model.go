@@ -1,6 +1,10 @@
 package shareholding
 
-import "time"
+import (
+	"time"
+	"trackly-backend/internal/company"
+	"trackly-backend/internal/investor"
+)
 
 type Shareholding struct {
 	ID                 uint      `gorm:"primaryKey;autoIncrement"`
@@ -14,4 +18,7 @@ type Shareholding struct {
 	Source             *string   `gorm:"type:varchar(50)"`
 	CreatedAt          time.Time `gorm:"autoCreateTime"`
 	UpdatedAt          time.Time `gorm:"autoUpdateTime"`
+
+	Company  *company.Company   `gorm:"foreignKey:CompanyID"`
+	Investor *investor.Investor `gorm:"foreignKey:InvestorID"`
 }

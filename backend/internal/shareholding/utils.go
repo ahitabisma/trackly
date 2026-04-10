@@ -372,3 +372,33 @@ func parsePercentage(percStr string) float64 {
 	}
 	return val
 }
+
+// deduplicateShareholdings removes duplicate shareholdings keeping the last occurrence
+// Duplicates are identified by (company_id, investor_id, date) combination
+func deduplicateShareholdings(shares []Shareholding) []Shareholding {
+	// Key: "company_id:investor_id:date"
+	seen := make(map[string]int) // maps key to index in result
+	var result []Shareholding
+
+	for _, sh := range shares {
+		key := getShareholdingKey(sh)
+
+		if idx, exists := seen[key]; exists {
+			// Replace the previous occurrence with this one (keep latest)
+			result[idx] = sh
+		} else {
+			// New combination, add to result
+			seen[key] = len(result)
+			result = append(result, sh)
+		}
+	}
+
+	return result
+}
+
+// getShareholdingKey generates a unique key for a shareholding record
+func getShareholdingKey(sh Shareholding) string {
+	return sh.Date.Format("2006-01-02") + ":" +
+		fmt.Sprintf("%d", sh.CompanyID) + ":" +
+		fmt.Sprintf("%d", sh.InvestorID)
+}

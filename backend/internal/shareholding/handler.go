@@ -2,6 +2,7 @@ package shareholding
 
 import (
 	"net/http"
+	"trackly-backend/pkg/filter"
 	"trackly-backend/pkg/httpx"
 	"trackly-backend/pkg/jobs"
 	customLogger "trackly-backend/pkg/logger"
@@ -28,6 +29,33 @@ func NewShareholdingHandlerWithQueue(svc *ShareHoldingService, queue jobs.Queue,
 		queue: queue,
 		log:   log,
 	}
+}
+
+func (h *ShareholdingHandler) ListShareholdings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		resp := httpx.Error(httpx.ErrValidation, "Method not allowed", "")
+		customLogger.LogHTTPError(h.log, resp, map[string]interface{}{
+			"method": r.Method,
+		})
+		httpx.WriteJSON(w, r, http.StatusMethodNotAllowed, resp)
+		return
+	}
+
+	defer r.Body.Close()
+
+	fq := filter.ParseFromRequest(r)
+
+	res, appErr := h.svc.GetAllShareholdings(r.Context(), fq)
+	if appErr != nil {
+		resp := httpx.Error(appErr.Code, "Something went wrong", appErr.Detail)
+		customLogger.LogHTTPInternalError(h.log, resp, map[string]interface{}{})
+		httpx.WriteJSON(w, r, http.StatusInternalServerError, resp)
+		return
+	}
+
+	resp := httpx.SuccessWithPagination(res.Data, "Shareholdings retrieved successfully", int(res.Pagination.Total), res.Pagination.Page, res.Pagination.Limit)
+	customLogger.LogHTTPSuccess(h.log, resp, map[string]interface{}{})
+	httpx.WriteJSON(w, r, http.StatusOK, resp)
 }
 
 func (h *ShareholdingHandler) ImportShareholdings(w http.ResponseWriter, r *http.Request) {
