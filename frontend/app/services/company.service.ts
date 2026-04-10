@@ -1,4 +1,5 @@
 import { $fetch } from 'ofetch';
+import { API_URL } from '~/lib/constants';
 
 interface Company {
     id: number;
@@ -42,7 +43,7 @@ export class CompanyService {
     private baseURL: string;
 
     constructor() {
-        this.baseURL = process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8080/api';
+        this.baseURL = API_URL;
     }
 
     /**
