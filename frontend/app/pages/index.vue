@@ -46,14 +46,14 @@
                         <!-- Dropdown suggestions -->
                         <div v-if="showDropdown && suggestions.length" ref="dropdownRef"
                             class="absolute top-full mt-2 left-0 right-0 bg-white border-2 border-ink rounded-xl overflow-hidden z-50">
-                            <div v-for="s in suggestions" :key="s.ticker"
+                            <div v-for="s in suggestions" :key="s.id"
                                 class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bluebg border-b border-bdr last:border-0 transition-colors"
-                                @mousedown.prevent="selectEmiten(s.ticker, s.name)">
+                                @mousedown.prevent="selectCompany(s)">
                                 <span
                                     class="font-mono text-xs font-bold text-bluedk bg-bluebg px-2 py-0.5 rounded-md min-w-[46px] text-center">
-                                    {{ s.ticker }}
+                                    {{ s.kode }}
                                 </span>
-                                <span class="text-sm text-ink2">{{ s.name }}</span>
+                                <span class="text-sm text-ink2">{{ s.nama_perusahaan }}</span>
                             </div>
                         </div>
                     </div>
@@ -66,13 +66,13 @@
                     <span class="text-xs text-muted font-mono">TRY:</span>
                     <button
                         class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
-                        @click="quickLoad('BRMS')">BRMS</button>
+                        @click="() => { searchInput = 'BRMS'; onSearchInput() }">BRMS</button>
                     <button
                         class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
-                        @click="quickLoad('GLAS')">GLAS NETWORK</button>
+                        @click="() => { searchInput = 'IMPC'; onSearchInput() }">IMPC</button>
                     <button
                         class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
-                        @click="quickLoad('PETROMINE')">PETROMINE</button>
+                        @click="() => { searchInput = 'BBCA'; onSearchInput() }">BBCA</button>
                 </div>
             </div>
         </section>
@@ -183,11 +183,23 @@
                     Shareholder Data Table
                 </h2>
                 <p class="text-sm text-muted">
-                    Structured view of all ownership records corresponding to the graph above.
+                    Structured view of shareholding records sorted by percentage ownership.
                 </p>
             </div>
 
-            <div class="border-2 border-ink rounded-2xl overflow-hidden bg-white"
+            <!-- Loading state -->
+            <div v-if="shareholdingLoading" class="text-center py-14">
+                <div class="animate-spin inline-block w-8 h-8 border-4 border-ink border-t-blue rounded-full"></div>
+                <p class="text-sm text-muted mt-4">Loading shareholding data...</p>
+            </div>
+
+            <!-- Error state -->
+            <div v-else-if="shareholdingError" class="bg-red-50 border-2 border-red-300 rounded-2xl p-6">
+                <p class="text-sm text-red-700 font-mono">Error: {{ shareholdingError }}</p>
+            </div>
+
+            <!-- Table -->
+            <div v-else class="border-2 border-ink rounded-2xl overflow-hidden bg-white"
                 :style="{ boxShadow: '4px 4px 0 #1a1612' }">
                 <div class="overflow-x-auto">
                     <table class="data-table w-full text-sm border-collapse">
@@ -211,6 +223,9 @@
                                 <th
                                     class="text-right px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider hidden md:table-cell">
                                     Shares</th>
+                                <th
+                                    class="text-center px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider hidden lg:table-cell">
+                                    Date</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -220,34 +235,58 @@
                                     <td class="px-5 py-3">
                                         <span
                                             class="font-mono text-xs font-bold text-bluedk bg-bluebg px-2 py-0.5 rounded-md">
-                                            {{ currentTicker }}
+                                            {{ row.company_kode }}
                                         </span>
                                     </td>
-                                    <td class="px-5 py-3 text-sm text-ink max-w-xs">{{ row.target }}</td>
+                                    <td class="px-5 py-3 text-sm text-ink max-w-xs">{{ row.investor_name }}</td>
                                     <td class="px-5 py-3 hidden sm:table-cell">
                                         <span
                                             class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                            {{ row.type }}
+                                            {{ row.investor_type }}
                                         </span>
                                     </td>
                                     <td class="px-5 py-3 hidden sm:table-cell">
                                         <span class="font-mono text-xs"
-                                            :class="row.origin === 'FOREIGN' ? 'text-violet-700' : 'text-green-700'">{{
-                                                row.origin }}</span>
+                                            :class="row.local_foreign === 'F' ? 'text-violet-700' : 'text-green-700'">{{
+                                                row.local_foreign === 'F' ? 'FOREIGN' : 'LOCAL' }}</span>
                                     </td>
-                                    <td class="px-5 py-3 text-right font-mono font-bold text-sm">{{ row.pct }}%</td>
+                                    <td class="px-5 py-3 text-right font-mono font-bold text-sm">{{
+                                        row.percentage.toFixed(2) }}%</td>
                                     <td class="px-5 py-3 text-right font-mono text-xs text-muted hidden md:table-cell">
-                                        {{ row.shares ? row.shares.toLocaleString() : '—' }}
+                                        {{ row.total_holding_shares ? row.total_holding_shares.toLocaleString() : '—' }}
+                                    </td>
+                                    <td class="px-5 py-3 text-center font-mono text-xs text-muted hidden lg:table-cell">
+                                        {{ row.date }}
                                     </td>
                                 </tr>
                             </template>
                             <tr v-else>
-                                <td colspan="6" class="text-center py-14 text-muted text-sm font-mono">
-                                    // search an emiten to populate
+                                <td colspan="7" class="text-center py-14 text-muted text-sm font-mono">
+                                    // search a company above to view shareholdings
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination -->
+                <div v-if="tableData.length > 0"
+                    class="flex items-center justify-between px-5 py-3 border-t border-bdr bg-card text-xs">
+                    <div class="text-muted font-mono">
+                        Page {{ pagination.page }} of {{ pagination.total_pages }} • {{ pagination.total }} total
+                    </div>
+                    <div class="flex gap-2">
+                        <button v-if="pagination.has_prev_page"
+                            class="px-3 py-1 rounded border border-ink text-ink hover:bg-cream2 transition-colors"
+                            @click="() => goToPage(pagination.page - 1)">
+                            ← Previous
+                        </button>
+                        <button v-if="pagination.has_next_page"
+                            class="px-3 py-1 rounded border border-ink text-ink hover:bg-cream2 transition-colors"
+                            @click="() => goToPage(pagination.page + 1)">
+                            Next →
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -278,18 +317,22 @@ definePageMeta({
     layout: 'main',
 })
 
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import * as d3 from 'd3'
 import { DB, EMITEN, TYPES, TM } from '~/composables/useDummyData'
+import { useCompanySearch, useCompanyShareholdings } from '~/composables/useCompanySearch'
+
+// ── Composables ─────────────────────────────────────────────────────────────
+const { searchQuery, suggestions, loading: searchLoading, searchCompanies, clearSuggestions } = useCompanySearch()
+const { selectedCompany, shareholdings, loading: shareholdingLoading, error: shareholdingError, pagination, loadCompanyShareholdings, goToPage } = useCompanyShareholdings()
 
 // ── Reactive state ──────────────────────────────────────────────────────────
 const currentTicker = ref('BRMS')
 const currentName = ref('BUMI RESOURCES MINERALS Tbk')
 const searchInput = ref('')
 const showDropdown = ref(false)
-const suggestions = ref<typeof EMITEN>([])
 const hidden = ref<Set<string>>(new Set())
-const tableData = ref<any[]>([])
+const tableData = computed(() => shareholdings.value)
 const stats = ref<any[]>([])
 const graphLoaded = ref(false)
 
@@ -319,33 +362,44 @@ let svgSelection: d3.Selection<SVGSVGElement, unknown, null, undefined> | null =
 
 // ── Search ───────────────────────────────────────────────────────────────────
 function onSearchInput() {
-    const q = searchInput.value.trim().toUpperCase()
-    if (!q) { showDropdown.value = false; return }
-    const ms = EMITEN.filter(e => e.ticker.includes(q) || e.name.toUpperCase().includes(q))
-    suggestions.value = ms.slice(0, 7)
-    showDropdown.value = ms.length > 0
+    const q = searchInput.value.trim()
+    if (!q) {
+        showDropdown.value = false
+        return
+    }
+    searchCompanies(q)
+    showDropdown.value = true
 }
 
-function selectEmiten(t: string, n: string) {
-    currentTicker.value = t
-    currentName.value = n
-    searchInput.value = t
+async function selectCompany(company: any) {
+    currentTicker.value = company.kode
+    currentName.value = company.nama_perusahaan
+    searchInput.value = company.kode
     showDropdown.value = false
-    loadGraph(t, n)
+
+    // Load shareholdings
+    await loadCompanyShareholdings(company)
+
+    // Build dummy graph for now (you can replace with real data later)
+    nextTick(() => {
+        loadGraph(company.kode, company.nama_perusahaan)
+    })
 }
 
 function doSearch() {
-    const q = searchInput.value.trim().toUpperCase()
-    const f = EMITEN.find(x => x.ticker === q)
-    selectEmiten(f ? f.ticker : 'BRMS', f ? f.name : 'BUMI RESOURCES MINERALS Tbk')
+    if (suggestions.value.length > 0) {
+        selectCompany(suggestions.value[0])
+    }
 }
 
 function quickLoad(t: string) {
-    const f = EMITEN.find(x => x.ticker === t)
-    if (f) selectEmiten(f.ticker, f.name)
-    else {
-        // Fallback to BRMS for demo tickers not in EMITEN list
-        selectEmiten('BRMS', 'BUMI RESOURCES MINERALS Tbk')
+    // Find company from suggestions or use dummy data for now
+    const found = suggestions.value.find(s => s.kode === t)
+    if (found) {
+        selectCompany(found)
+    } else {
+        // Fallback to dummy data
+        selectCompany({ kode: t, nama_perusahaan: t })
     }
 }
 
@@ -357,23 +411,34 @@ function loadGraph(t: string, n: string) {
     hidden.value = new Set()
     graphLoaded.value = false
 
-    // Build stats
-    const foreign = data.edges.filter((e: any) => e.origin === 'FOREIGN')
-    const total = data.edges.reduce((s: number, e: any) => s + e.pct, 0)
-    stats.value = [
-        { label: 'Shareholders', val: data.edges.length, sub: 'investors ≥1%' },
-        { label: 'Foreign', val: foreign.length, sub: `of ${data.edges.length} total` },
-        { label: 'Largest Holder', val: data.edges[0].pct + '%', sub: data.edges[0].target.split(' ')[0] + '…' },
-        { label: 'Total Recorded', val: total.toFixed(1) + '%', sub: 'of float recorded' },
-        { label: 'Cross-Holdings', val: data.cross.length, sub: 'connections found' },
-    ]
-
-    // Build table
-    tableData.value = data.edges
+    // Build stats from shareholdings or dummy data
+    let statsData = data
+    if (shareholdings.value.length > 0) {
+        const foreign = shareholdings.value.filter(s => s.local_foreign === 'F')
+        const total = shareholdings.value.reduce((sum, s) => sum + s.percentage, 0)
+        stats.value = [
+            { label: 'Shareholders', val: shareholdings.value.length, sub: 'investors ≥1%' },
+            { label: 'Foreign', val: foreign.length, sub: `of ${shareholdings.value.length} total` },
+            { label: 'Largest Holder', val: shareholdings.value[0]?.percentage.toFixed(2) + '%', sub: shareholdings.value[0]?.investor_name.split(' ')[0] + '…' },
+            { label: 'Total Recorded', val: total.toFixed(1) + '%', sub: 'of float recorded' },
+            { label: 'Data Records', val: shareholdings.value.length, sub: 'shareholdings found' },
+        ]
+    } else {
+        // Fallback to dummy data
+        const foreign = data.edges.filter((e: any) => e.origin === 'FOREIGN')
+        const total = data.edges.reduce((s: number, e: any) => s + e.pct, 0)
+        stats.value = [
+            { label: 'Shareholders', val: data.edges.length, sub: 'investors ≥1%' },
+            { label: 'Foreign', val: foreign.length, sub: `of ${data.edges.length} total` },
+            { label: 'Largest Holder', val: data.edges[0].pct + '%', sub: data.edges[0].target.split(' ')[0] + '…' },
+            { label: 'Total Recorded', val: total.toFixed(1) + '%', sub: 'of float recorded' },
+            { label: 'Cross-Holdings', val: data.cross.length, sub: 'connections found' },
+        ]
+    }
 
     // Draw after DOM update
     nextTick(() => {
-        drawGraph(t, data)
+        drawGraph(t, statsData)
         graphLoaded.value = true
     })
 }
@@ -607,14 +672,23 @@ function resetView() {
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
 function exportCSV() {
-    const rows = [['Ticker', 'Investor', 'Type', 'Origin', 'Percentage', 'Shares']]
+    const rows = [['Ticker', 'Company Name', 'Investor', 'Type', 'Origin', 'Percentage', 'Shares', 'Date']]
     tableData.value.forEach(e =>
-        rows.push([currentTicker.value, e.target, e.type, e.origin, e.pct, e.shares || '']),
+        rows.push([
+            currentTicker.value,
+            e.company_name,
+            e.investor_name,
+            e.investor_type,
+            e.local_foreign,
+            e.percentage.toString(),
+            e.total_holding_shares.toString(),
+            e.date || ''
+        ]),
     )
-    const csv = rows.map(r => r.join(',')).join('\n')
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
     const a = document.createElement('a')
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv)
-    a.download = `ksei_${currentTicker.value}.csv`
+    a.download = `shareholding_${currentTicker.value}_${new Date().toISOString().split('T')[0]}.csv`
     a.click()
 }
 
