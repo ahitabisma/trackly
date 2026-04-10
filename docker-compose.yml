@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trackly-backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "3001:3001"
+    networks:
+      - nginx_network
+    volumes:
+      - ./backend/configs:/app/configs
+      - ./backend/storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trackly-frontend
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "3002:3002"
+    depends_on:
+      - backend
+    networks:
+      - nginx_network
+
+networks:
+  nginx_network:
+    external: true
