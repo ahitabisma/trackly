@@ -40,16 +40,21 @@
                         </svg>
 
                         <!-- Dropdown suggestions -->
-                        <div v-if="showDropdown && suggestions.length" ref="dropdownRef"
+                        <div v-if="showDropdown" ref="dropdownRef"
                             class="absolute top-full mt-2 left-0 right-0 bg-white border-2 border-ink rounded-xl max-h-64 min-h-fit overflow-y-auto overflow-x-hidden z-50">
-                            <div v-for="s in suggestions" :key="s.id"
-                                class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bluebg border-b border-bdr last:border-0 transition-colors"
-                                @mousedown.prevent="selectCompany(s)">
-                                <span
-                                    class="font-mono text-xs font-bold text-bluedk bg-bluebg px-2 py-0.5 rounded-md min-w-[46px] text-center">
-                                    {{ s.kode }}
-                                </span>
-                                <span class="text-sm text-ink2">{{ s.nama_perusahaan }}</span>
+                            <div v-if="suggestions.length">
+                                <div v-for="s in suggestions" :key="s.id"
+                                    class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bluebg border-b border-bdr last:border-0 transition-colors"
+                                    @mousedown.prevent="selectCompany(s)">
+                                    <span
+                                        class="font-mono text-xs font-bold text-bluedk bg-bluebg px-2 py-0.5 rounded-md min-w-[46px] text-center">
+                                        {{ s.kode }}
+                                    </span>
+                                    <span class="text-sm text-ink2">{{ s.nama_perusahaan }}</span>
+                                </div>
+                            </div>
+                            <div v-else class="px-4 py-4 text-center">
+                                <p class="text-sm text-muted font-mono">Ticker tidak ditemukan</p>
                             </div>
                         </div>
                     </div>
@@ -161,7 +166,7 @@
                                             </span>
                                         </td>
                                         <td class="px-5 py-3 text-sm text-ink max-w-xs text-left">{{ row.investor_name
-                                        }}</td>
+                                            }}</td>
                                         <td class="px-5 py-3">
                                             <span
                                                 class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">

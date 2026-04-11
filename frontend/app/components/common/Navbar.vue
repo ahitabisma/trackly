@@ -65,8 +65,9 @@ onUnmounted(() => {
                 <NuxtLink to="/" :class="getLinkClassName('/')" @click="closeMenu">
                     1% Share Ownership
                 </NuxtLink>
-                <NuxtLink to="/" :class="getLinkClassName('/')" @click="closeMenu">
-                    Shareholder Concentration List
+                <NuxtLink to="/high-concentration-list" :class="getLinkClassName('/high-concentration-list')"
+                    @click="closeMenu">
+                    High Concentration List
                 </NuxtLink>
             </div>
         </div>
