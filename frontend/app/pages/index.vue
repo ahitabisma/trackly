@@ -8,9 +8,9 @@
         <section class="min-h-[50vh] flex flex-col items-center justify-center text-center px-5 pt-20 pb-10"
             :style="{ background: 'linear-gradient(180deg,#cce8f5 0%,#f2ede4 50%)' }">
 
-            <!-- Slogan -->
-            <div class="w-full max-w-3xl mb-6">
-                <div class="font-mono text-md uppercase tracking-[0.3em] text-bluedk mb-3">Pantau Kepemilikan Saham Jadi
+            <!-- Slogan + Update Badge -->
+            <div class="w-full max-w-3xl mb-6 flex flex-col items-center gap-4">
+                <div class="font-mono text-md uppercase tracking-[0.3em] text-bluedk">Pantau Kepemilikan Saham Jadi
                     Lebih Mudah</div>
             </div>
 
@@ -32,7 +32,7 @@
                     <div class="relative flex-1">
                         <input id="hero-search" v-model="searchInput" class="search-input" type="text"
                             placeholder="Cari ticker... mis. BRMS, BBCA" @keydown.enter="doSearch"
-                            @input="onSearchInput" @focus="onSearchInput" />
+                            @input="handleSearchInput" @focus="onSearchInput" maxlength="4" />
                         <svg class="absolute right-4 top-1/2 -translate-y-1/2 text-muted w-4 h-4 pointer-events-none"
                             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="11" cy="11" r="8" />
@@ -80,6 +80,16 @@
          TABLE SECTION
     ================================================ -->
             <div id="table-section" class="w-full max-w-7xl mx-auto px-4 sm:px-8 pt-8 pb-24">
+                <!-- Update date badge -->
+                <div class="flex items-center justify-center w-full mb-6">
+                    <div class="flex items-center gap-2 bg-card border-2 border-ink rounded-xl px-4 py-2 w-fit text-center"
+                        :style="{ boxShadow: '2px 2px 0 #1a1612' }">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0"></span>
+                        <span class="font-mono text-xs text-muted uppercase tracking-wider">Terakhir diperbarui</span>
+                        <span class="font-mono text-xs text-ink font-bold">{{ lastUpdated }}</span>
+                    </div>
+                </div>
+
                 <div>
                     <h2 class="font-serif text-3xl text-ink mb-1" :style="{ letterSpacing: '-1px' }">
                         Data Pemegang Saham di atas 1%
@@ -300,7 +310,7 @@ definePageMeta({
 })
 
 import { ref, reactive, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import * as d3 from 'd3'
 import { TYPES, TM } from '~/composables/useDummyData'
 import { useCompanySearch, useCompanyShareholdings } from '~/composables/useCompanySearch'
@@ -308,10 +318,12 @@ import type { Shareholding } from '~/types/shareholding.type'
 
 // ── Composables ─────────────────────────────────────────────────────────────
 const route = useRoute()
+const router = useRouter()
 const { suggestions, searchCompanies } = useCompanySearch()
 const { shareholdings, loading: shareholdingLoading, error: shareholdingError, loadCompanyShareholdings } = useCompanyShareholdings()
 
 // ── Reactive state ──────────────────────────────────────────────────────────
+const lastUpdated = ref('31 Maret 2026')
 const currentTicker = ref('BBCA')
 const currentName = ref('BANK CENTRAL ASIA Tbk')
 const searchInput = ref('BBCA')
@@ -403,6 +415,12 @@ function applyLegendVisibility() {
 }
 
 // ── Search ───────────────────────────────────────────────────────────────────
+function handleSearchInput(event: Event) {
+    const input = event.target as HTMLInputElement
+    searchInput.value = input.value.toUpperCase()
+    onSearchInput()
+}
+
 function onSearchInput() {
     const q = searchInput.value.trim()
     if (!q) {
@@ -417,6 +435,9 @@ function onSearchInput() {
 
 async function selectCompany(company: any) {
     await loadCompanyShareholdings(company)
+
+    // Navigate with ticker parameter
+    router.push({ path: '/', query: { ticker: company.kode } })
 
     // Now update ticker to trigger graph render via watch
     currentTicker.value = company.kode
