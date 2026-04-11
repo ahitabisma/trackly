@@ -36,6 +36,7 @@ interface FilterParams {
     orderKey?: string;
     orderRule?: 'asc' | 'desc';
     search?: string;
+    searchFilters?: Array<{ field: string; value: string }> | Record<string, any>;
 }
 
 export class CompanyService {
@@ -69,6 +70,11 @@ export class CompanyService {
             // Search
             if (params.search) queryParams.append('search', params.search);
 
+            // Search filters (ILIKE on backend)
+            if (params.searchFilters) {
+                queryParams.append('searchFilters', JSON.stringify(params.searchFilters));
+            }
+
             const baseURL = this.getBaseURL();
             const url = `${baseURL}/companies${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
 
@@ -88,14 +94,14 @@ export class CompanyService {
      */
     async searchCompanies(query: string, limit: number = 10): Promise<CompanyResponse> {
         try {
-            const baseURL = this.getBaseURL();
-            const url = `${baseURL}/companies?search=${encodeURIComponent(query)}&limit=${limit}`;
-
-            const response = await $fetch<CompanyResponse>(url, {
-                method: 'GET',
+            return this.getAllCompanies({
+                page: 1,
+                limit,
+                searchFilters: [
+                    { field: 'kode', value: query },
+                    { field: 'nama_perusahaan', value: query },
+                ],
             });
-
-            return response;
         } catch (error) {
             console.error('Failed to search companies:', error);
             throw error;

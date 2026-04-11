@@ -83,7 +83,7 @@ export const useCompanyShareholdings = () => {
         try {
             const response = await shareholdingService.getAllShareholdings({
                 page: 1,
-                limit: 10,
+                limit: 1000,
                 filters: { company_kode: company.kode },
                 orderKey: 'percentage',
                 orderRule: 'desc',
@@ -118,7 +118,7 @@ export const useCompanyShareholdings = () => {
         try {
             const response = await shareholdingService.getAllShareholdings({
                 page,
-                limit: pagination.value.limit,
+                limit: 1000,
                 filters: { company_kode: selectedCompany.value.kode },
                 orderKey: 'percentage',
                 orderRule: 'desc',

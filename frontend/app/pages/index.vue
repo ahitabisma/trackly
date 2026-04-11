@@ -1,41 +1,37 @@
 <template>
-    <main class="min-h-screen bg-cream text-ink font-sans antialiased overflow-x-hidden">
+    <main class="min-h-screen bg-cream text-ink font-sans font-bold antialiased overflow-x-hidden">
+
 
         <!-- ================================================
          HERO SECTION
     ================================================ -->
-        <section class="min-h-screen flex flex-col items-center justify-center text-center px-5 pt-20 pb-16"
+        <section class="min-h-[50vh] flex flex-col items-center justify-center text-center px-5 pt-20 pb-10"
             :style="{ background: 'linear-gradient(180deg,#cce8f5 0%,#f2ede4 50%)' }">
-            <!-- Badge -->
-            <div class="fu flex items-center gap-2 mb-5 px-4 py-1.5 rounded-full text-xs font-mono uppercase tracking-widest text-bluedk"
-                :style="{ background: 'rgba(106,176,232,.12)', border: '1.5px solid rgba(106,176,232,.32)' }">
-                <span class="pulse-dot w-2 h-2 rounded-full bg-blue inline-block"></span>
-                KSEI Real-time Data
+
+            <!-- Slogan -->
+            <div class="w-full max-w-3xl mb-6">
+                <div class="font-mono text-md uppercase tracking-[0.3em] text-bluedk mb-3">Pantau Kepemilikan Saham Jadi
+                    Lebih Mudah</div>
             </div>
 
-            <!-- Headline -->
-            <h1 class="fu1 font-serif text-ink leading-none mb-6"
-                :style="{ fontSize: 'clamp(40px,7.5vw,92px)', letterSpacing: '-3px', maxWidth: '820px', lineHeight: 0.97 }">
-                Visualizing the IDX
-                <br />
-                <em>Shareholder Network.</em>
-            </h1>
-
-            <!-- Subtext -->
-            <p class="fu2 font-light text-ink2 mb-10"
-                :style="{ fontSize: '17px', maxWidth: '530px', lineHeight: 1.85 }">
-                Explore complex <span class="hl hl-b">cross-ownership</span> and
-                <span class="hl hl-o">institutional holdings</span> across
-                <span class="hl hl-g">IDX-listed companies</span> in a single
-                <span class="hl hl-p">interactive view</span>.
-            </p>
+            <!-- Ticker berjalan -->
+            <aside class="relative w-full max-w-5xl mb-8">
+                <div class="w-full bg-white rounded-xl overflow-hidden">
+                    <div class="tradingview-widget-container" style="width: 100%; height: 44px;">
+                        <iframe scrolling="no" allowtransparency="true" frameborder="0"
+                            src="https://www.tradingview-widget.com/embed-widget/ticker-tape/?locale=en#%7B%22symbols%22%3A%5B%7B%22proName%22%3A%22IDX%3ABUMI%22%2C%22title%22%3A%22BUMI%22%7D%2C%7B%22proName%22%3A%22IDX%3ADEWA%22%2C%22title%22%3A%22DEWA%22%7D%2C%7B%22proName%22%3A%22IDX%3ADCII%22%2C%22title%22%3A%22DCII%22%7D%2C%7B%22proName%22%3A%22IDX%3ABBCA%22%2C%22title%22%3A%22BBCA%22%7D%2C%7B%22proName%22%3A%22IDX%3AANTM%22%2C%22title%22%3A%22ANTM%22%7D%2C%7B%22proName%22%3A%22IDX%3AARCI%22%2C%22title%22%3A%22ARCI%22%7D%5D%2C%22showSymbolLogo%22%3Atrue%2C%22colorTheme%22%3A%22light%22%2C%22isTransparent%22%3Afalse%2C%22displayMode%22%3A%22large%22%2C%22width%22%3A%22100%25%22%2C%22height%22%3A44%7D"
+                            title="ticker tape TradingView widget" lang="en"
+                            style="user-select: none; box-sizing: border-box; display: block; height: 44px; width: 100%;"></iframe>
+                    </div>
+                </div>
+            </aside>
 
             <!-- SEARCH BOX -->
             <div class="fu3 w-full max-w-xl relative">
-                <div class="flex gap-3 items-stretch">
+                <div class="flex flex-col sm:flex-row gap-3 items-stretch">
                     <div class="relative flex-1">
                         <input id="hero-search" v-model="searchInput" class="search-input" type="text"
-                            placeholder="Search ticker... e.g. BRMS, BBCA" @keydown.enter="doSearch"
+                            placeholder="Cari ticker... mis. BRMS, BBCA" @keydown.enter="doSearch"
                             @input="onSearchInput" @focus="onSearchInput" />
                         <svg class="absolute right-4 top-1/2 -translate-y-1/2 text-muted w-4 h-4 pointer-events-none"
                             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -45,7 +41,7 @@
 
                         <!-- Dropdown suggestions -->
                         <div v-if="showDropdown && suggestions.length" ref="dropdownRef"
-                            class="absolute top-full mt-2 left-0 right-0 bg-white border-2 border-ink rounded-xl overflow-hidden z-50">
+                            class="absolute top-full mt-2 left-0 right-0 bg-white border-2 border-ink rounded-xl max-h-64 min-h-fit overflow-y-auto overflow-x-hidden z-50">
                             <div v-for="s in suggestions" :key="s.id"
                                 class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bluebg border-b border-bdr last:border-0 transition-colors"
                                 @mousedown.prevent="selectCompany(s)">
@@ -58,21 +54,135 @@
                         </div>
                     </div>
 
-                    <button class="neo-btn" @click="doSearch">EXPLORE →</button>
+                    <button class="neo-btn w-full sm:w-auto flex items-center justify-center" @click="doSearch">TELUSURI
+                        →</button>
                 </div>
 
                 <!-- Quick load chips -->
                 <div class="flex gap-2 mt-4 flex-wrap justify-center items-center">
-                    <span class="text-xs text-muted font-mono">TRY:</span>
+                    <span class="text-xs text-muted font-mono">COBA:</span>
                     <button
                         class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
-                        @click="() => { searchInput = 'BRMS'; onSearchInput() }">BRMS</button>
+                        @click="() => quickLoad('BUMI')">BUMI</button>
                     <button
                         class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
-                        @click="() => { searchInput = 'IMPC'; onSearchInput() }">IMPC</button>
+                        @click="() => quickLoad('DEWA')">DEWA</button>
                     <button
                         class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
-                        @click="() => { searchInput = 'BBCA'; onSearchInput() }">BBCA</button>
+                        @click="() => quickLoad('IMPC')">IMPC</button>
+                    <button
+                        class="text-xs px-3 py-1 rounded-full border border-bdr2 text-ink2 hover:border-ink hover:text-ink transition-all font-mono"
+                        @click="() => quickLoad('BBCA')">BBCA</button>
+                </div>
+            </div>
+
+            <!-- ================================================
+         TABLE SECTION
+    ================================================ -->
+            <div id="table-section" class="w-full max-w-7xl mx-auto px-4 sm:px-8 pt-8 pb-24">
+                <div>
+                    <h2 class="font-serif text-3xl text-ink mb-1" :style="{ letterSpacing: '-1px' }">
+                        Data Pemegang Saham di atas 1%
+                    </h2>
+                    <p class="text-sm text-muted">
+                        Tampilan terstruktur data kepemilikan saham berdasarkan persentase.
+                    </p>
+                </div>
+
+                <!-- STATS CARDS -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-4">
+                    <div v-for="(s, i) in stats" :key="i" class="bg-card border-2 border-ink rounded-xl p-4"
+                        :style="{ boxShadow: '2px 2px 0 #1a1612' }">
+                        <div class="font-mono text-xs uppercase tracking-wider text-muted mb-1">{{ s.label }}</div>
+                        <div class="font-serif text-2xl text-ink leading-none mb-1">{{ s.val }}</div>
+                        <div class="text-xs text-muted">{{ s.sub }}</div>
+                    </div>
+                </div>
+
+                <!-- Loading state -->
+                <div v-if="shareholdingLoading" class="text-center py-14">
+                    <div class="animate-spin inline-block w-8 h-8 border-4 border-ink border-t-blue rounded-full"></div>
+                    <p class="text-sm text-muted mt-4">Memuat data kepemilikan saham...</p>
+                </div>
+
+                <!-- Error state -->
+                <div v-else-if="shareholdingError" class="bg-red-50 border-2 border-red-300 rounded-2xl p-6">
+                    <p class="text-sm text-red-700 font-mono">Galat: {{ shareholdingError }}</p>
+                </div>
+
+                <!-- Table -->
+                <div v-else class="border-2 border-ink rounded-2xl overflow-hidden bg-white"
+                    :style="{ boxShadow: '4px 4px 0 #1a1612' }">
+                    <div class="overflow-x-auto">
+                        <table class="data-table w-full min-w-[920px] text-sm border-collapse">
+                            <thead>
+                                <tr class="border-b-2 border-ink bg-card">
+                                    <th
+                                        class="text-center px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        Kode</th>
+                                    <th
+                                        class="text-left px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        Nama Investor</th>
+                                    <th
+                                        class="text-center px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        Tipe</th>
+                                    <th
+                                        class="text-center px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        Asal</th>
+                                    <th
+                                        class="text-center px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        %</th>
+                                    <th
+                                        class="text-center px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        Saham</th>
+                                    <th
+                                        class="text-center px-5 py-3 font-mono text-xs text-muted font-bold uppercase tracking-wider">
+                                        Tanggal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template v-if="tableData.length > 0">
+                                    <tr v-for="(row, i) in tableData" :key="i"
+                                        class="border-b border-bdr transition-colors hover:bg-card">
+                                        <td class="px-5 py-3">
+                                            <span
+                                                class="font-mono text-xs font-bold text-bluedk bg-bluebg px-2 py-0.5 rounded-md">
+                                                {{ row.company_kode }}
+                                            </span>
+                                        </td>
+                                        <td class="px-5 py-3 text-sm text-ink max-w-xs text-left">{{ row.investor_name
+                                        }}</td>
+                                        <td class="px-5 py-3">
+                                            <span
+                                                class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                                {{ row.investor_type }}
+                                            </span>
+                                        </td>
+                                        <td class="px-5 py-3">
+                                            <span class="font-mono text-xs"
+                                                :class="row.local_foreign === 'F' ? 'text-violet-700' : 'text-green-700'">{{
+                                                    row.local_foreign === 'F' ? 'FOREIGN' : 'LOCAL' }}</span>
+                                        </td>
+                                        <td class="px-5 py-3 text-right font-mono font-bold text-sm">{{
+                                            row.percentage.toFixed(2) }}%</td>
+                                        <td class="px-5 py-3 text-right font-mono text-xs text-muted">
+                                            {{ row.total_holding_shares ? row.total_holding_shares.toLocaleString() :
+                                                '—' }}
+                                        </td>
+                                        <td class="px-5 py-3 text-center font-mono text-xs text-muted">
+                                            {{ row.date }}
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr v-else>
+                                    <td colspan="7" class="text-center py-14 text-muted text-sm font-mono">
+                                        // cari perusahaan di atas untuk melihat kepemilikan saham
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
                 </div>
             </div>
         </section>
@@ -80,31 +190,32 @@
         <!-- ================================================
          GRAPH SECTION
     ================================================ -->
-        <section id="graph-section" class="max-w-7xl mx-auto px-4 sm:px-8 pb-20 pt-2">
+        <section id="graph-section" class="w-full px-4 sm:px-8 pb-20 pt-2 lg:max-w-7xl lg:mx-auto">
 
             <!-- Header -->
             <div class="flex items-start justify-between flex-wrap gap-4 mb-5">
                 <div>
                     <div class="font-serif text-ink"
-                        :style="{ fontSize: '42px', letterSpacing: '-2px', lineHeight: 1 }">{{ currentTicker }}</div>
+                        :style="{ fontSize: '42px', letterSpacing: '-2px', lineHeight: 1 }">{{
+                            currentTicker }}</div>
                     <div class="text-sm text-muted mt-0.5">{{ currentName }}</div>
                     <div class="text-xs text-muted mt-1 font-mono">
-                        {{ tableData.length }} shareholders ≥1% // KSEI Data
+                        {{ tableData.length }} pemegang saham ≥1% // Data KSEI
                     </div>
                 </div>
-                <div class="flex gap-3 flex-wrap items-center">
-                    <button class="neo-btn-sm" @click="exportCSV">↓ EXPORT CSV</button>
-                    <button class="neo-btn-sm" @click="resetView">↺ RESET VIEW</button>
-                </div>
+                <!-- <div class="flex gap-3 flex-wrap items-center">
+                    <button class="neo-btn-sm" @click="exportCSV">↓ EKSPOR CSV</button>
+                    <button class="neo-btn-sm" @click="resetView">↺ RESET TAMPILAN</button>
+                </div> -->
             </div>
 
             <!-- Graph + Legend -->
-            <div class="flex gap-4 items-start">
+            <div class="flex flex-col lg:flex-row gap-4 items-start">
 
                 <!-- LEGEND PANEL -->
-                <div class="flex-shrink-0 w-44 bg-card rounded-2xl p-4 border-2 border-ink"
+                <div class="flex-shrink-0 w-full lg:w-44 bg-card rounded-2xl p-4 border-2 border-ink"
                     :style="{ boxShadow: '3px 3px 0 #1a1612' }">
-                    <div class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Investor Type</div>
+                    <div class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Tipe Investor</div>
                     <div class="flex flex-col gap-0.5">
                         <div v-for="t in TYPES" :key="t.key"
                             class="leg-item flex items-center gap-2 rounded-lg px-2 py-1.5 select-none hover:bg-cream2 transition-colors cursor-pointer"
@@ -118,20 +229,20 @@
                     </div>
 
                     <div class="mt-4 pt-3 border-t border-bdr">
-                        <div class="font-mono text-xs uppercase tracking-widest text-muted mb-2.5">Edge Type</div>
+                        <div class="font-mono text-xs uppercase tracking-widest text-muted mb-2.5">Tipe Relasi</div>
                         <div class="flex items-center gap-2 text-xs text-ink2 mb-1.5">
                             <div class="w-6 flex-shrink-0" :style="{ borderTop: '2px solid #6ab0e8' }"></div>
-                            Direct
+                            Langsung
                         </div>
                         <div class="flex items-center gap-2 text-xs text-ink2">
                             <div class="w-6 flex-shrink-0" :style="{ borderTop: '2px dashed #8b70d8' }"></div>
-                            Cross-holding
+                            Kepemilikan Silang
                         </div>
                     </div>
                 </div>
 
                 <!-- CANVAS -->
-                <div class="flex-1 min-w-0">
+                <div class="flex-1 min-w-0 w-full">
                     <div class="relative border-2 border-ink rounded-2xl overflow-hidden"
                         :style="{ boxShadow: '4px 4px 0 #1a1612' }">
                         <div ref="canvasRef" id="graph-canvas" style="height: 560px;">
@@ -155,137 +266,8 @@
                         <!-- Empty state -->
                         <div v-if="!graphLoaded"
                             class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <div class="text-5xl mb-4">📊</div>
-                            <div class="font-serif text-2xl text-ink mb-2">Search an emiten above</div>
-                            <div class="text-sm text-muted">or click a quick-load chip to explore the network</div>
+                            <div class="text-sm text-muted">Silahkan pilih emiten untuk melihat jaringan</div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STATS CARDS -->
-            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-4">
-                <div v-for="(s, i) in stats" :key="i" class="bg-card border-2 border-ink rounded-xl p-4"
-                    :style="{ boxShadow: '2px 2px 0 #1a1612' }">
-                    <div class="font-mono text-xs uppercase tracking-wider text-muted mb-1">{{ s.label }}</div>
-                    <div class="font-serif text-2xl text-ink leading-none mb-1">{{ s.val }}</div>
-                    <div class="text-xs text-muted">{{ s.sub }}</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ================================================
-         TABLE SECTION
-    ================================================ -->
-        <section id="table-section" class="max-w-7xl mx-auto px-4 sm:px-8 pb-24">
-            <div class="mb-6">
-                <h2 class="font-serif text-3xl text-ink mb-1" :style="{ letterSpacing: '-1px' }">
-                    Shareholder Data Table
-                </h2>
-                <p class="text-sm text-muted">
-                    Structured view of shareholding records sorted by percentage ownership.
-                </p>
-            </div>
-
-            <!-- Loading state -->
-            <div v-if="shareholdingLoading" class="text-center py-14">
-                <div class="animate-spin inline-block w-8 h-8 border-4 border-ink border-t-blue rounded-full"></div>
-                <p class="text-sm text-muted mt-4">Loading shareholding data...</p>
-            </div>
-
-            <!-- Error state -->
-            <div v-else-if="shareholdingError" class="bg-red-50 border-2 border-red-300 rounded-2xl p-6">
-                <p class="text-sm text-red-700 font-mono">Error: {{ shareholdingError }}</p>
-            </div>
-
-            <!-- Table -->
-            <div v-else class="border-2 border-ink rounded-2xl overflow-hidden bg-white"
-                :style="{ boxShadow: '4px 4px 0 #1a1612' }">
-                <div class="overflow-x-auto">
-                    <table class="data-table w-full text-sm border-collapse">
-                        <thead>
-                            <tr class="border-b-2 border-ink bg-card">
-                                <th
-                                    class="text-left px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider">
-                                    Ticker</th>
-                                <th
-                                    class="text-left px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider">
-                                    Investor Name</th>
-                                <th
-                                    class="text-left px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider hidden sm:table-cell">
-                                    Type</th>
-                                <th
-                                    class="text-left px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider hidden sm:table-cell">
-                                    Origin</th>
-                                <th
-                                    class="text-right px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider">
-                                    %</th>
-                                <th
-                                    class="text-right px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider hidden md:table-cell">
-                                    Shares</th>
-                                <th
-                                    class="text-center px-5 py-3 font-mono text-xs text-muted font-normal uppercase tracking-wider hidden lg:table-cell">
-                                    Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template v-if="tableData.length > 0">
-                                <tr v-for="(row, i) in tableData" :key="i"
-                                    class="border-b border-bdr transition-colors hover:bg-card">
-                                    <td class="px-5 py-3">
-                                        <span
-                                            class="font-mono text-xs font-bold text-bluedk bg-bluebg px-2 py-0.5 rounded-md">
-                                            {{ row.company_kode }}
-                                        </span>
-                                    </td>
-                                    <td class="px-5 py-3 text-sm text-ink max-w-xs">{{ row.investor_name }}</td>
-                                    <td class="px-5 py-3 hidden sm:table-cell">
-                                        <span
-                                            class="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                            {{ row.investor_type }}
-                                        </span>
-                                    </td>
-                                    <td class="px-5 py-3 hidden sm:table-cell">
-                                        <span class="font-mono text-xs"
-                                            :class="row.local_foreign === 'F' ? 'text-violet-700' : 'text-green-700'">{{
-                                                row.local_foreign === 'F' ? 'FOREIGN' : 'LOCAL' }}</span>
-                                    </td>
-                                    <td class="px-5 py-3 text-right font-mono font-bold text-sm">{{
-                                        row.percentage.toFixed(2) }}%</td>
-                                    <td class="px-5 py-3 text-right font-mono text-xs text-muted hidden md:table-cell">
-                                        {{ row.total_holding_shares ? row.total_holding_shares.toLocaleString() : '—' }}
-                                    </td>
-                                    <td class="px-5 py-3 text-center font-mono text-xs text-muted hidden lg:table-cell">
-                                        {{ row.date }}
-                                    </td>
-                                </tr>
-                            </template>
-                            <tr v-else>
-                                <td colspan="7" class="text-center py-14 text-muted text-sm font-mono">
-                                    // search a company above to view shareholdings
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Pagination -->
-                <div v-if="tableData.length > 0"
-                    class="flex items-center justify-between px-5 py-3 border-t border-bdr bg-card text-xs">
-                    <div class="text-muted font-mono">
-                        Page {{ pagination.page }} of {{ pagination.total_pages }} • {{ pagination.total }} total
-                    </div>
-                    <div class="flex gap-2">
-                        <button v-if="pagination.has_prev_page"
-                            class="px-3 py-1 rounded border border-ink text-ink hover:bg-cream2 transition-colors"
-                            @click="() => goToPage(pagination.page - 1)">
-                            ← Previous
-                        </button>
-                        <button v-if="pagination.has_next_page"
-                            class="px-3 py-1 rounded border border-ink text-ink hover:bg-cream2 transition-colors"
-                            @click="() => goToPage(pagination.page + 1)">
-                            Next →
-                        </button>
                     </div>
                 </div>
             </div>
@@ -317,24 +299,32 @@ definePageMeta({
     layout: 'main',
 })
 
-import { ref, reactive, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import * as d3 from 'd3'
-import { DB, EMITEN, TYPES, TM } from '~/composables/useDummyData'
+import { TYPES, TM } from '~/composables/useDummyData'
 import { useCompanySearch, useCompanyShareholdings } from '~/composables/useCompanySearch'
+import type { Shareholding } from '~/types/shareholding.type'
 
 // ── Composables ─────────────────────────────────────────────────────────────
-const { searchQuery, suggestions, loading: searchLoading, searchCompanies, clearSuggestions } = useCompanySearch()
-const { selectedCompany, shareholdings, loading: shareholdingLoading, error: shareholdingError, pagination, loadCompanyShareholdings, goToPage } = useCompanyShareholdings()
+const { suggestions, searchCompanies } = useCompanySearch()
+const { shareholdings, loading: shareholdingLoading, error: shareholdingError, loadCompanyShareholdings } = useCompanyShareholdings()
 
 // ── Reactive state ──────────────────────────────────────────────────────────
-const currentTicker = ref('BRMS')
-const currentName = ref('BUMI RESOURCES MINERALS Tbk')
+const currentTicker = ref('BBCA')
+const currentName = ref('BANK CENTRAL ASIA Tbk')
 const searchInput = ref('')
 const showDropdown = ref(false)
 const hidden = ref<Set<string>>(new Set())
 const tableData = computed(() => shareholdings.value)
 const stats = ref<any[]>([])
 const graphLoaded = ref(false)
+
+// ── Debounce for search ──────────────────────────────────────────────────────
+let searchTimeout: NodeJS.Timeout | null = null
+const debounceSearch = (callback: () => void, delay: number = 300) => {
+    if (searchTimeout) clearTimeout(searchTimeout)
+    searchTimeout = setTimeout(callback, delay)
+}
 
 const tooltip = reactive({
     visible: false,
@@ -343,6 +333,13 @@ const tooltip = reactive({
     tick: '',
     name: '',
     rows: '',
+})
+
+// ── Auto-load graph when ticker changes (data already fetched via selectCompany) ──
+watch(currentTicker, (newTicker) => {
+    if (newTicker && newTicker.trim() && shareholdings.value.length > 0) {
+        loadGraph(newTicker, currentName.value)
+    }
 })
 
 // ── Template refs ────────────────────────────────────────────────────────────
@@ -356,9 +353,52 @@ function getTypeMeta(type?: string) {
     return (type && (TM as Record<string, any>)[type]) || TM.OTHER || FALLBACK_TYPE_META
 }
 
+const INVESTOR_TYPE_MAP: Record<string, string> = {
+    CP: 'CORPORATE',
+    IB: 'INVESTMENT_BANK',
+    SC: 'SECURITIES',
+    ID: 'INDIVIDUAL',
+}
+
+function normalizeInvestorType(type?: string) {
+    if (!type) return 'OTHER'
+    const mapped = INVESTOR_TYPE_MAP[type] || type
+    return (TM as Record<string, any>)[mapped] ? mapped : 'OTHER'
+}
+
+function buildGraphDataFromShareholdings(records: Shareholding[], ticker: string) {
+    return {
+        ticker,
+        name: records[0]?.company_name || ticker,
+        edges: records.map(r => ({
+            target: r.investor_name,
+            pct: r.percentage,
+            type: normalizeInvestorType(r.investor_type),
+            origin: r.local_foreign === 'F' ? 'FOREIGN' : 'LOCAL',
+            shares: r.total_holding_shares,
+        })),
+        cross: [] as any[],
+    }
+}
+
 // D3 zoom instance stored for zoom controls
 let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
 let svgSelection: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null
+let nodeSelection: any = null
+let linkSelection: any = null
+let labelSelection: any = null
+
+function applyLegendVisibility() {
+    if (!nodeSelection || !linkSelection || !labelSelection) return
+    const hiddenSet = hidden.value
+    nodeSelection
+        .attr('opacity', (d: any) => hiddenSet.has(d.type) ? 0.08 : 1)
+        .attr('pointer-events', (d: any) => hiddenSet.has(d.type) ? 'none' : 'auto')
+    linkSelection
+        .attr('opacity', (d: any) => hiddenSet.has(d.type) ? 0.08 : 1)
+    labelSelection
+        .attr('opacity', (d: any) => hiddenSet.has(d.type) ? 0 : 1)
+}
 
 // ── Search ───────────────────────────────────────────────────────────────────
 function onSearchInput() {
@@ -367,8 +407,10 @@ function onSearchInput() {
         showDropdown.value = false
         return
     }
-    searchCompanies(q)
-    showDropdown.value = true
+    debounceSearch(() => {
+        searchCompanies(q)
+        showDropdown.value = true
+    }, 300)
 }
 
 async function selectCompany(company: any) {
@@ -377,13 +419,8 @@ async function selectCompany(company: any) {
     searchInput.value = company.kode
     showDropdown.value = false
 
-    // Load shareholdings
+    // Load shareholdings (graph will render automatically via watch)
     await loadCompanyShareholdings(company)
-
-    // Build dummy graph for now (you can replace with real data later)
-    nextTick(() => {
-        loadGraph(company.kode, company.nama_perusahaan)
-    })
 }
 
 function doSearch() {
@@ -405,40 +442,34 @@ function quickLoad(t: string) {
 
 // ── Load data + draw graph ───────────────────────────────────────────────────
 function loadGraph(t: string, n: string) {
-    const data = DB[t] || DB['BRMS']
+    if (shareholdings.value.length === 0) {
+        stats.value = []
+        graphLoaded.value = false
+        if (svgRef.value) {
+            d3.select(svgRef.value).selectAll('*').remove()
+        }
+        return
+    }
+
+    const graphData = buildGraphDataFromShareholdings(shareholdings.value, t)
     currentTicker.value = t
     currentName.value = n
     hidden.value = new Set()
     graphLoaded.value = false
 
     // Build stats from shareholdings or dummy data
-    let statsData = data
-    if (shareholdings.value.length > 0) {
-        const foreign = shareholdings.value.filter(s => s.local_foreign === 'F')
-        const total = shareholdings.value.reduce((sum, s) => sum + s.percentage, 0)
-        stats.value = [
-            { label: 'Shareholders', val: shareholdings.value.length, sub: 'investors ≥1%' },
-            { label: 'Foreign', val: foreign.length, sub: `of ${shareholdings.value.length} total` },
-            { label: 'Largest Holder', val: shareholdings.value[0]?.percentage.toFixed(2) + '%', sub: shareholdings.value[0]?.investor_name.split(' ')[0] + '…' },
-            { label: 'Total Recorded', val: total.toFixed(1) + '%', sub: 'of float recorded' },
-            { label: 'Data Records', val: shareholdings.value.length, sub: 'shareholdings found' },
-        ]
-    } else {
-        // Fallback to dummy data
-        const foreign = data.edges.filter((e: any) => e.origin === 'FOREIGN')
-        const total = data.edges.reduce((s: number, e: any) => s + e.pct, 0)
-        stats.value = [
-            { label: 'Shareholders', val: data.edges.length, sub: 'investors ≥1%' },
-            { label: 'Foreign', val: foreign.length, sub: `of ${data.edges.length} total` },
-            { label: 'Largest Holder', val: data.edges[0].pct + '%', sub: data.edges[0].target.split(' ')[0] + '…' },
-            { label: 'Total Recorded', val: total.toFixed(1) + '%', sub: 'of float recorded' },
-            { label: 'Cross-Holdings', val: data.cross.length, sub: 'connections found' },
-        ]
-    }
+    const foreign = shareholdings.value.filter(s => s.local_foreign === 'F')
+    const total = shareholdings.value.reduce((sum, s) => sum + s.percentage, 0)
+    stats.value = [
+        { label: 'Asing', val: foreign.length, sub: `dari ${shareholdings.value.length} total` },
+        { label: 'Pemegang Terbesar', val: shareholdings.value[0]?.percentage.toFixed(2) + '%', sub: shareholdings.value[0]?.investor_name + '…' },
+        { label: 'Total Tercatat', val: total.toFixed(1) + '%', sub: 'dari float tercatat' },
+        { label: 'Jumlah Data', val: shareholdings.value.length, sub: 'data kepemilikan' },
+    ]
 
     // Draw after DOM update
     nextTick(() => {
-        drawGraph(t, statsData)
+        drawGraph(t, graphData)
         graphLoaded.value = true
     })
 }
@@ -504,10 +535,10 @@ function drawGraph(t: string, data: any) {
 
     const links = [
         ...data.edges.map((e: any) => ({
-            source: t, target: e.target, pct: e.pct, shares: e.shares, cross: false,
+            source: t, target: e.target, pct: e.pct, shares: e.shares, cross: false, type: e.type,
         })),
         ...data.cross.map((c: any) => ({
-            source: c.investor, target: c.target, pct: c.pct, cross: true,
+            source: c.investor, target: c.target, pct: c.pct, cross: true, type: c.type,
         })),
     ]
 
@@ -520,6 +551,7 @@ function drawGraph(t: string, data: any) {
 
     // Links
     const linkS = lG.selectAll('line').data(links).join('line')
+    linkS
         .attr('stroke', (d: any) => d.cross ? '#8b70d8' : '#6ab0e8')
         .attr('stroke-opacity', (d: any) => d.cross ? 0.28 : 0.33)
         .attr('stroke-width', (d: any) => Math.max(1.2, d.pct * 0.2))
@@ -528,6 +560,7 @@ function drawGraph(t: string, data: any) {
 
     // Edge labels
     const labelS = labG.selectAll('text').data(links.filter((d: any) => d.pct >= 2)).join('text')
+    labelS
         .attr('font-size', 9)
         .attr('fill', '#b0a898')
         .attr('text-anchor', 'middle')
@@ -549,6 +582,11 @@ function drawGraph(t: string, data: any) {
                     d.fx = null; d.fy = null
                 }),
         )
+
+    nodeSelection = nodeS
+    linkSelection = linkS
+    labelSelection = labelS
+    applyLegendVisibility()
 
     // Glow ring for centre node
     nodeS.filter((d: any) => d.id === t).append('circle')
@@ -587,11 +625,11 @@ function drawGraph(t: string, data: any) {
             const e = data.edges.find((x: any) => x.target === d.id)
             let rows = ''
             if (e) {
-                rows += `<div>Ownership: <b style="color:#1a1612">${e.pct}%</b></div>`
-                if (e.shares) rows += `<div>Shares: ${e.shares.toLocaleString()}</div>`
-                rows += `<div>Origin: ${e.origin}</div>`
+                rows += `<div>Kepemilikan: <b style="color:#1a1612">${e.pct}%</b></div>`
+                if (e.shares) rows += `<div>Saham: ${e.shares.toLocaleString()}</div>`
+                rows += `<div>Asal: ${e.origin}</div>`
             }
-            rows += `<div>Type: ${getTypeMeta(d.type).label}</div>`
+            rows += `<div>Tipe: ${getTypeMeta(d.type).label}</div>`
 
             tooltip.visible = true
             tooltip.x = ev.clientX + 16
@@ -651,6 +689,7 @@ function toggleVisibility(type: string) {
     const s = new Set(hidden.value)
     s.has(type) ? s.delete(type) : s.add(type)
     hidden.value = s
+    applyLegendVisibility()
 }
 
 // ── Zoom controls ─────────────────────────────────────────────────────────────
@@ -672,7 +711,7 @@ function resetView() {
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
 function exportCSV() {
-    const rows = [['Ticker', 'Company Name', 'Investor', 'Type', 'Origin', 'Percentage', 'Shares', 'Date']]
+    const rows = [['Kode', 'Nama Perusahaan', 'Investor', 'Tipe', 'Asal', 'Persentase', 'Saham', 'Tanggal']]
     tableData.value.forEach(e =>
         rows.push([
             currentTicker.value,
@@ -703,10 +742,15 @@ function handleOutsideClick(e: MouseEvent) {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(() => {
     document.addEventListener('click', handleOutsideClick)
-    setTimeout(() => loadGraph('BRMS', 'BUMI RESOURCES MINERALS Tbk'), 200)
+    // Auto-load default ticker on mount
+    loadCompanyShareholdings({ kode: 'BBCA', nama_perusahaan: 'BANK CENTRAL ASIA Tbk', id: '', created_at: '', updated_at: '' } as any)
+        .then(() => {
+            loadGraph('BBCA', 'BANK CENTRAL ASIA Tbk')
+        })
 })
 
 onUnmounted(() => {
     document.removeEventListener('click', handleOutsideClick)
+    if (searchTimeout) clearTimeout(searchTimeout)
 })
 </script>
