@@ -300,19 +300,21 @@ definePageMeta({
 })
 
 import { ref, reactive, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import * as d3 from 'd3'
 import { TYPES, TM } from '~/composables/useDummyData'
 import { useCompanySearch, useCompanyShareholdings } from '~/composables/useCompanySearch'
 import type { Shareholding } from '~/types/shareholding.type'
 
 // ── Composables ─────────────────────────────────────────────────────────────
+const route = useRoute()
 const { suggestions, searchCompanies } = useCompanySearch()
 const { shareholdings, loading: shareholdingLoading, error: shareholdingError, loadCompanyShareholdings } = useCompanyShareholdings()
 
 // ── Reactive state ──────────────────────────────────────────────────────────
 const currentTicker = ref('BBCA')
 const currentName = ref('BANK CENTRAL ASIA Tbk')
-const searchInput = ref('')
+const searchInput = ref('BBCA')
 const showDropdown = ref(false)
 const hidden = ref<Set<string>>(new Set())
 const tableData = computed(() => shareholdings.value)
@@ -414,13 +416,13 @@ function onSearchInput() {
 }
 
 async function selectCompany(company: any) {
+    await loadCompanyShareholdings(company)
+
+    // Now update ticker to trigger graph render via watch
     currentTicker.value = company.kode
     currentName.value = company.nama_perusahaan
     searchInput.value = company.kode
     showDropdown.value = false
-
-    // Load shareholdings (graph will render automatically via watch)
-    await loadCompanyShareholdings(company)
 }
 
 function doSearch() {
@@ -742,11 +744,23 @@ function handleOutsideClick(e: MouseEvent) {
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(() => {
     document.addEventListener('click', handleOutsideClick)
-    // Auto-load default ticker on mount
-    loadCompanyShareholdings({ kode: 'BBCA', nama_perusahaan: 'BANK CENTRAL ASIA Tbk', id: '', created_at: '', updated_at: '' } as any)
-        .then(() => {
-            loadGraph('BBCA', 'BANK CENTRAL ASIA Tbk')
-        })
+    // Check if ticker passed from high-concentration-list page
+    const tickerFromQuery = route.query.ticker as string | undefined
+    if (tickerFromQuery) {
+        // Load ticker from query param
+        currentTicker.value = tickerFromQuery
+        searchInput.value = tickerFromQuery
+        loadCompanyShareholdings({ kode: tickerFromQuery, nama_perusahaan: tickerFromQuery, id: '', created_at: '', updated_at: '' } as any)
+            .then(() => {
+                loadGraph(tickerFromQuery, tickerFromQuery)
+            })
+    } else {
+        // Auto-load default ticker (BBCA) on mount
+        loadCompanyShareholdings({ kode: 'BBCA', nama_perusahaan: 'BANK CENTRAL ASIA Tbk', id: '', created_at: '', updated_at: '' } as any)
+            .then(() => {
+                loadGraph('BBCA', 'BANK CENTRAL ASIA Tbk')
+            })
+    }
 })
 
 onUnmounted(() => {
