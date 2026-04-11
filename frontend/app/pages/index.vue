@@ -15,8 +15,8 @@
             </div>
 
             <!-- Ticker berjalan -->
-            <aside class="relative w-full max-w-5xl mb-8">
-                <div class="w-full bg-white rounded-xl overflow-hidden">
+            <aside class="relative w-full mb-8">
+                <div class="w-full bg-transparent rounded-xl overflow-hidden">
                     <div class="tradingview-widget-container" style="width: 100%; height: 44px;">
                         <iframe scrolling="no" allowtransparency="true" frameborder="0"
                             src="https://www.tradingview-widget.com/embed-widget/ticker-tape/?locale=en#%7B%22symbols%22%3A%5B%7B%22proName%22%3A%22IDX%3ABUMI%22%2C%22title%22%3A%22BUMI%22%7D%2C%7B%22proName%22%3A%22IDX%3ADEWA%22%2C%22title%22%3A%22DEWA%22%7D%2C%7B%22proName%22%3A%22IDX%3ADCII%22%2C%22title%22%3A%22DCII%22%7D%2C%7B%22proName%22%3A%22IDX%3ABBCA%22%2C%22title%22%3A%22BBCA%22%7D%2C%7B%22proName%22%3A%22IDX%3AANTM%22%2C%22title%22%3A%22ANTM%22%7D%2C%7B%22proName%22%3A%22IDX%3AARCI%22%2C%22title%22%3A%22ARCI%22%7D%5D%2C%22showSymbolLogo%22%3Atrue%2C%22colorTheme%22%3A%22light%22%2C%22isTransparent%22%3Afalse%2C%22displayMode%22%3A%22large%22%2C%22width%22%3A%22100%25%22%2C%22height%22%3A44%7D"
@@ -166,7 +166,7 @@
                                             </span>
                                         </td>
                                         <td class="px-5 py-3 text-sm text-ink max-w-xs text-left">{{ row.investor_name
-                                            }}</td>
+                                        }}</td>
                                         <td class="px-5 py-3">
                                             <span
                                                 class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
