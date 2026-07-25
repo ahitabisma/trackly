@@ -26,6 +26,6 @@ COPY --from=builder /app/scripts ./scripts
 COPY configs/ ./configs/
 COPY storage/ ./storage/
 
-EXPOSE 3000
+EXPOSE 8001
 
 CMD ["./app"]

@@ -21,7 +21,7 @@ WORKDIR /app
 # Nuxt standalone output tidak butuh node_modules
 COPY --from=builder /app/.output ./.output
 
-EXPOSE 3000
+EXPOSE 8002
 
 # Jalankan Nuxt SSR server
 CMD ["node", ".output/server/index.mjs"]
