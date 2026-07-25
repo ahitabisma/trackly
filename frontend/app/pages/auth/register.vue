@@ -103,7 +103,7 @@
             </div>
 
             <!-- Submit -->
-            <button class="neo-btn-primary mb-3.5" :disabled="loading" @click="doRegister">
+            <button class="neo-btn-primary mb-3.5" :disabled="loading" @click="handleRegister">
                 <span v-if="!loading">BUAT AKUN</span>
                 <span v-else class="flex items-center gap-2">
                     <SpinnerIcon /> Memproses...
@@ -152,64 +152,19 @@ definePageMeta({ layout: false })
 
 const router = useRouter()
 const { EyeIcon, EyeOffIcon, GoogleIcon, SpinnerIcon } = useAuthIcons()
-const { registerForm, errors, loading, showRegPass, showConfirmPass, toast, showToast, clearErr, strengthLabel, strengthBarClass, getUsers, saveUsers } = useAuthForm()
-
-const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+const { registerForm, errors, loading, showRegPass, showConfirmPass, toast, showToast, clearErr, strengthLabel, strengthBarClass, doRegister } = useAuthForm()
 
 function onPassInput() {
     clearErr('regPassword')
 }
 
-async function doRegister() {
-    Object.keys(errors).forEach(k => delete errors[k])
-    let valid = true
-    if (!registerForm.name) { errors.regName = 'Nama tidak boleh kosong.'; valid = false }
-    if (!isValidEmail(registerForm.email)) { errors.regEmail = 'Masukkan email yang valid.'; valid = false }
-    if (registerForm.password.length < 8) { errors.regPassword = 'Password minimal 8 karakter.'; valid = false }
-    if (registerForm.password !== registerForm.confirm) { errors.regConfirm = 'Password tidak cocok.'; valid = false }
-    if (!registerForm.terms) { showToast('Setujui syarat & ketentuan terlebih dahulu', 'error'); return }
-    if (!valid) return
-
-    loading.value = true
-    await new Promise(r => setTimeout(r, 1400))
-    loading.value = false
-
-    const users = getUsers()
-    if (users.find((u: any) => u.email === registerForm.email)) {
-        errors.regEmail = 'Email sudah terdaftar.'
-        showToast('Email sudah digunakan', 'error')
-        return
-    }
-
-    users.push({
-        name: registerForm.name,
-        email: registerForm.email,
-        password: btoa(registerForm.password),
-        provider: 'email',
-        createdAt: new Date().toISOString(),
-    })
-    saveUsers(users)
-    localStorage.setItem('ksei_session', JSON.stringify({ name: registerForm.name, email: registerForm.email }))
-    showToast(`Halo ${registerForm.name}! Akun kamu sudah aktif. Mengalihkan...`, 'success')
-    setTimeout(() => router.push('/'), 3000)
+async function handleRegister() {
+    const ok = await doRegister()
+    if (ok) setTimeout(() => router.push('/analisis'), 1500)
 }
 
 async function doGoogleAuth() {
-    showToast('Membuka Google Sign In...', '')
-    loading.value = true
-    await new Promise(r => setTimeout(r, 1600))
-    loading.value = false
-
-    const mockName = 'Demo User'
-    const mockEmail = 'demo@gmail.com'
-    const users = getUsers()
-    if (!users.find((u: any) => u.email === mockEmail)) {
-        users.push({ name: mockName, email: mockEmail, password: null, provider: 'google', createdAt: new Date().toISOString() })
-        saveUsers(users)
-    }
-    localStorage.setItem('ksei_session', JSON.stringify({ name: mockName, email: mockEmail }))
-    showToast(`Selamat datang, ${mockName}. Mengalihkan...`, 'success')
-    setTimeout(() => router.push('/'), 3000)
+    showToast('Fitur Google Sign In belum tersedia', 'error')
 }
 </script>
 

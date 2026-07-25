@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import * as d3 from 'd3'
 import { useTickerSearch, useAnalisis } from '~/composables/useAnalisis'
 
-definePageMeta({ layout: 'main' })
+definePageMeta({ layout: 'main', middleware: 'auth' })
 
 const DATE_FORMATTER = (d: string) => {
     const dt = new Date(d)

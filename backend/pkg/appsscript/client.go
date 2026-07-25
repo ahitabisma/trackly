@@ -68,7 +68,7 @@ func (c *Client) SetValueByKey(key, value string) error {
 	q.Set("value", value)
 	u.RawQuery = q.Encode()
 
-	resp, err := c.httpClient.Get(u.String())
+	resp, err := c.httpClient.Post(u.String(), "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		return fmt.Errorf("set value %s: %w", key, err)
 	}

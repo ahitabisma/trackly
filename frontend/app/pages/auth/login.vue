@@ -38,7 +38,7 @@
                 </div>
                 <input v-model="loginForm.email" type="email" placeholder="nama@email.com" autocomplete="email"
                     class="neo-input" :class="{ 'neo-input-err': errors.loginEmail }" @input="clearErr('loginEmail')"
-                    @keydown.enter="doLogin" />
+                                            @keydown.enter="handleLogin" />
                 <p v-if="errors.loginEmail" class="text-[11px] text-red-600 mt-1">{{ errors.loginEmail }}</p>
             </div>
 
@@ -56,7 +56,7 @@
                     <input v-model="loginForm.password" :type="showLoginPass ? 'text' : 'password'"
                         placeholder="Masukkan password" autocomplete="current-password" class="neo-input pr-12"
                         :class="{ 'neo-input-err': errors.loginPassword }" @input="clearErr('loginPassword')"
-                        @keydown.enter="doLogin" />
+                        @keydown.enter="handleLogin" />
                     <button
                         class="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink transition-colors p-1"
                         type="button" @click="showLoginPass = !showLoginPass">
@@ -68,7 +68,7 @@
             </div>
 
             <!-- Submit -->
-            <button class="neo-btn-primary mb-3.5" :disabled="loading" @click="doLogin">
+            <button class="neo-btn-primary mb-3.5" :disabled="loading" @click="handleLogin">
                 <span v-if="!loading">MASUK</span>
                 <span v-else class="flex items-center gap-2">
                     <SpinnerIcon /> Memproses...
@@ -109,7 +109,6 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthForm } from '~/composables/useAuth'
 import { useAuthIcons } from '~/composables/useAuthIcons'
@@ -118,58 +117,15 @@ definePageMeta({ layout: false })
 
 const router = useRouter()
 const { EyeIcon, EyeOffIcon, GoogleIcon, SpinnerIcon } = useAuthIcons()
-const { loginForm, errors, loading, showLoginPass, toast, showToast, clearErr, getUsers, saveUsers } = useAuthForm()
+const { loginForm, errors, loading, showLoginPass, toast, showToast, clearErr, doLogin } = useAuthForm()
 
-function triggerSuccess(title: string, msg: string) {
-    setTimeout(() => router.push('/'), 3000)
-    showToast(title, 'success')
-    localStorage.setItem('ksei_session', msg)
-}
-
-async function doLogin() {
-    errors.loginEmail = ''
-    errors.loginPassword = ''
-    let valid = true
-    const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
-
-    if (!isValidEmail(loginForm.email)) { errors.loginEmail = 'Email tidak valid.'; valid = false }
-    if (loginForm.password.length < 6) { errors.loginPassword = 'Password minimal 6 karakter.'; valid = false }
-    if (!valid) return
-
-    loading.value = true
-    await new Promise(r => setTimeout(r, 1200))
-    loading.value = false
-
-    const users = getUsers()
-    const user = users.find((u: any) => u.email === loginForm.email && u.password === btoa(loginForm.password))
-
-    if (user) {
-        localStorage.setItem('ksei_session', JSON.stringify({ name: user.name, email: user.email }))
-        showToast(`Selamat datang kembali, ${user.name}. Mengalihkan...`, 'success')
-        setTimeout(() => router.push('/'), 3000)
-    } else {
-        errors.loginEmail = 'Email atau password salah.'
-        errors.loginPassword = 'Cek kembali email & password kamu.'
-        showToast('Login gagal — email atau password salah', 'error')
-    }
+async function handleLogin() {
+    const ok = await doLogin()
+    if (ok) setTimeout(() => router.push('/analisis'), 1500)
 }
 
 async function doGoogleAuth() {
-    showToast('Membuka Google Sign In...', '')
-    loading.value = true
-    await new Promise(r => setTimeout(r, 1600))
-    loading.value = false
-
-    const mockName = 'Demo User'
-    const mockEmail = 'demo@gmail.com'
-    const users = getUsers()
-    if (!users.find((u: any) => u.email === mockEmail)) {
-        users.push({ name: mockName, email: mockEmail, password: null, provider: 'google', createdAt: new Date().toISOString() })
-        saveUsers(users)
-    }
-    localStorage.setItem('ksei_session', JSON.stringify({ name: mockName, email: mockEmail }))
-    showToast(`Selamat datang, ${mockName}. Mengalihkan...`, 'success')
-    setTimeout(() => router.push('/'), 3000)
+    showToast('Fitur Google Sign In belum tersedia', 'error')
 }
 </script>
 
