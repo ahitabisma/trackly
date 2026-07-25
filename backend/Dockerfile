@@ -16,11 +16,13 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata python3 py3-pip py3-numpy py3-pandas py3-matplotlib && \
+    pip3 install --break-system-packages --no-cache-dir mplfinance ta && \
+    ln -sf python3 /usr/bin/python
 
 COPY --from=builder /app/bin/app .
+COPY --from=builder /app/scripts ./scripts
 
-# Fallback config jika volume belum di-mount
 COPY configs/ ./configs/
 COPY storage/ ./storage/
 

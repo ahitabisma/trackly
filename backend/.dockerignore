@@ -1,0 +1,6 @@
+.git
+__pycache__
+*.pyc
+configs/config.yaml
+storage/logs
+tmp
