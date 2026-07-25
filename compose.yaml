@@ -5,9 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: trackly-backend
     ports:
-      - "3001:3000"
+      - "3000:8001"
     networks:
-      - nginx_network
+      - together-network
     volumes:
       - ./backend/configs:/app/configs
       - ./backend/storage:/app/storage
@@ -20,12 +20,12 @@ services:
     env_file:
       - ./frontend/.env
     ports:
-      - "3002:3000"
+      - "3000:8002"
     depends_on:
       - backend
     networks:
-      - nginx_network
+      - together-network
 
 networks:
-  nginx_network:
+  together-network:
     external: true
