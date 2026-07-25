@@ -1,3 +1,5 @@
 configs/config.yaml
 storage/logs/*
 tmp
+__pycache__/
+*.pyc

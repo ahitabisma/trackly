@@ -52,6 +52,10 @@ onUnmounted(() => {
                 <NuxtLink to="/high-concentration-list" :class="getLinkClassName('/high-concentration-list')">
                     High Concentration List
                 </NuxtLink>
+
+                <NuxtLink to="/analisis" :class="getLinkClassName('/analisis')">
+                    Analisis
+                </NuxtLink>
             </div>
 
             <button v-if="isMobile" class="neo-btn-sm" type="button" :aria-expanded="menuOpen" aria-label="Toggle menu"
@@ -68,6 +72,9 @@ onUnmounted(() => {
                 <NuxtLink to="/high-concentration-list" :class="getLinkClassName('/high-concentration-list')"
                     @click="closeMenu">
                     High Concentration List
+                </NuxtLink>
+                <NuxtLink to="/analisis" :class="getLinkClassName('/analisis')" @click="closeMenu">
+                    Analisis
                 </NuxtLink>
             </div>
         </div>

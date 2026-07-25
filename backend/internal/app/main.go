@@ -9,11 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"trackly-backend/internal/analisis"
 	"trackly-backend/internal/auth"
 	"trackly-backend/internal/company"
 	"trackly-backend/internal/investor"
 	"trackly-backend/internal/shareholding"
 	"trackly-backend/internal/user"
+	"trackly-backend/pkg/appsscript"
 	"trackly-backend/pkg/config"
 	"trackly-backend/pkg/database"
 	"trackly-backend/pkg/jobs"
@@ -106,12 +108,24 @@ func Run() error {
 		)(next)
 	}
 
+	// analisis service + handler
+	appsscriptClient := appsscript.NewClient(cfg.AppsScript.URL, time.Duration(cfg.AppsScript.Timeout)*time.Second)
+	analisisService := analisis.NewAnalisisService(
+		appsscriptClient,
+		log,
+		cfg.AppsScript.PythonScriptPath,
+		time.Duration(cfg.AppsScript.PollIntervalMs)*time.Millisecond,
+		cfg.AppsScript.PollMaxRetries,
+	)
+	analisisHandler := analisis.NewAnalisisHandler(analisisService, log)
+
 	// routes
 	SetupAppRoutes(mux, appHandler)
 	auth.SetupAuthRoutes(mux, authHandler)
 	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
 	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
 	shareholding.SetupShareholdingRoutes(mux, shareHoldingHandler, adminMiddleware)
+	analisis.SetupAnalisisRoutes(mux, analisisHandler)
 
 	// Apply CORS middleware
 	allowedOrigins := []string{

@@ -36,3 +36,10 @@ upload:
 rate_limit:
   requests: 100
   window: 60 # seconds
+
+appsscript:
+  url: "" # Apps Script Web App URL
+  timeout: 30 # HTTP request timeout in seconds
+  poll_interval_ms: 500 # polling interval for chart refresh
+  poll_max_retries: 20 # max poll attempts (500ms * 20 = 10s total)
+  python_script_path: ./scripts/generate_chart.py

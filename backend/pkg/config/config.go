@@ -42,6 +42,14 @@ type Config struct {
 		Requests int
 		Window   int
 	}
+
+	AppsScript struct {
+		URL               string
+		Timeout           int
+		PollIntervalMs    int `mapstructure:"poll_interval_ms"`
+		PollMaxRetries    int `mapstructure:"poll_max_retries"`
+		PythonScriptPath  string `mapstructure:"python_script_path"`
+	}
 }
 
 func Load() (*Config, error) {
