@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trackly-backend
+    ports:
+      - "8001:8001"
+    networks:
+      - together-network
+    volumes:
+      - ./backend/configs:/app/configs
+      - ./backend/storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trackly-frontend
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "8002:3000"
+    depends_on:
+      - backend
+    networks:
+      - together-network
+
+networks:
+  together-network:
+    external: true
