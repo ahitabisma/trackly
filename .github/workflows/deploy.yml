@@ -18,7 +18,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ${{ secrets.APP_PATH }}
+            cd /var/www/html/trackly
             git pull origin main
             docker compose -f docker-compose.prod.yml up --build -d
             docker image prune -f
