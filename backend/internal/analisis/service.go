@@ -22,19 +22,37 @@ import (
 type AnalisisService struct {
 	client         *appsscript.Client
 	log            *logrus.Logger
+	pool           *WorkerPool
 	pythonPath     string
+	pythonBin      string
+	pythonTimeout  time.Duration
 	pollInterval   time.Duration
 	pollMaxRetries int
 }
 
-func NewAnalisisService(client *appsscript.Client, log *logrus.Logger, pythonPath string, pollInterval time.Duration, pollMaxRetries int) *AnalisisService {
-	return &AnalisisService{
+func NewAnalisisService(client *appsscript.Client, log *logrus.Logger, pool *WorkerPool, pythonPath string, pollInterval time.Duration, pollMaxRetries int, opts ...func(*AnalisisService)) *AnalisisService {
+	s := &AnalisisService{
 		client:         client,
 		log:            log,
+		pool:           pool,
 		pythonPath:     pythonPath,
+		pythonBin:      "python",
+		pythonTimeout:  120 * time.Second,
 		pollInterval:   pollInterval,
 		pollMaxRetries: pollMaxRetries,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
+func WithPythonBin(bin string) func(*AnalisisService) {
+	return func(s *AnalisisService) { s.pythonBin = bin }
+}
+
+func WithPythonTimeout(timeout time.Duration) func(*AnalisisService) {
+	return func(s *AnalisisService) { s.pythonTimeout = timeout }
 }
 
 type masterCache struct {
@@ -43,9 +61,9 @@ type masterCache struct {
 }
 
 var (
-	masterCacheData  *masterCache
-	masterCacheMu    sync.RWMutex
-	masterCacheTTL   = 5 * time.Minute
+	masterCacheData *masterCache
+	masterCacheMu   sync.RWMutex
+	masterCacheTTL  = 5 * time.Minute
 )
 
 func safeString(v interface{}) string {
@@ -181,18 +199,60 @@ func (s *AnalisisService) GetTicker(ctx context.Context, kode string) (*Snapshot
 }
 
 func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest) (*AnalisisResponse, error) {
-	if err := s.client.SetValueByKey("selected_ticker", req.Ticker); err != nil {
-		return nil, fmt.Errorf("update selected_ticker: %w", err)
-	}
-	if err := s.client.SetValueByKey("date_start", req.DateStart); err != nil {
-		return nil, fmt.Errorf("update date_start: %w", err)
-	}
-	if err := s.client.SetValueByKey("date_end", req.DateEnd); err != nil {
-		return nil, fmt.Errorf("update date_end: %w", err)
+	slot, err := s.pool.AcquireWorker(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	var chartRows []map[string]interface{}
+	var released bool
+	release := func() {
+		if !released {
+			released = true
+			s.pool.ReleaseWorker(slot)
+		}
+	}
+	defer release()
+
+	acquiredAt := time.Now()
+	s.pool.Watchdog(slot, acquiredAt)
+
+	// ponytail: echo-check max 3 retries with 500ms interval
+	echoCheck := func() bool {
+		for attempt := 0; attempt < 3; attempt++ {
+			rows, err := s.client.GetSheet("config")
+			if err != nil {
+				s.log.WithError(err).Warn("echo-check: get config failed")
+				time.Sleep(500 * time.Millisecond)
+				continue
+			}
+			m := buildConfigMap(rows, s.log)
+			if v, ok := m[fmt.Sprintf("selected_ticker_%d", slot)]; ok && v == req.Ticker {
+				return true
+			}
+			s.log.WithField("config", m).Warn("echo-check: ticker mismatch, retrying")
+			time.Sleep(500 * time.Millisecond)
+		}
+		return false
+	}
+
+	if err := s.client.SetValueByKey(fmt.Sprintf("selected_ticker_%d", slot), req.Ticker); err != nil {
+		return nil, fmt.Errorf("update selected_ticker_%d: %w", slot, err)
+	}
+	if err := s.client.SetValueByKey(fmt.Sprintf("date_start_%d", slot), req.DateStart); err != nil {
+		return nil, fmt.Errorf("update date_start_%d: %w", slot, err)
+	}
+	if err := s.client.SetValueByKey(fmt.Sprintf("date_end_%d", slot), req.DateEnd); err != nil {
+		return nil, fmt.Errorf("update date_end_%d: %w", slot, err)
+	}
+
+	if !echoCheck() {
+		return nil, fmt.Errorf("echo-check failed: config write did not propagate for slot %d", slot)
+	}
+
+	chartSheet := fmt.Sprintf("chart_%d", slot)
+	var ohlcv []OHLCVRow
 	var pollErr error
+
 	for attempt := 0; attempt <= s.pollMaxRetries; attempt++ {
 		select {
 		case <-ctx.Done():
@@ -200,41 +260,34 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 		case <-time.After(s.pollInterval):
 		}
 
-		chartRows, pollErr = s.client.GetSheet("chart")
+		chartRows, pollErr := s.client.GetSheet(chartSheet)
 		if pollErr != nil {
 			s.log.WithError(pollErr).Warn("poll chart sheet attempt failed")
 			continue
 		}
 
-		if len(chartRows) > 0 {
+		ohlcv, pollErr = parseColumnarChart(chartRows, s.log)
+		if pollErr != nil {
+			s.log.WithError(pollErr).Warn("parse columnar chart attempt failed")
+			continue
+		}
+
+		if len(ohlcv) > 0 {
 			break
 		}
 	}
-	if pollErr != nil && len(chartRows) == 0 {
+
+	if pollErr != nil && len(ohlcv) == 0 {
 		return nil, fmt.Errorf("chart sheet not available after polling: %w", pollErr)
 	}
 
-	var ohlcv []OHLCVRow
-	for _, row := range chartRows {
-		date := strings.TrimSpace(safeString(row["Date"]))
-		if date == "" || date == "#N/A" {
-			continue
-		}
-		// ponytail: strip ISO time suffix, keep date portion
-		if idx := strings.Index(date, "T"); idx > 0 {
-			date = date[:idx]
-		}
-		ohlcv = append(ohlcv, OHLCVRow{
-			Date:   date,
-			Open:   safeFloat(row["Open"]),
-			High:   safeFloat(row["High"]),
-			Low:    safeFloat(row["Low"]),
-			Close:  safeFloat(row["Close"]),
-			Volume: safeInt64(row["Volume"]),
-		})
-	}
+	// Release worker early — chart data is safe, python is async from pool
+	release()
 
-	snapshot, _ := s.GetTicker(ctx, req.Ticker)
+	snapshot, err := s.GetTicker(ctx, req.Ticker)
+	if err != nil {
+		s.log.WithError(err).Warn("snapshot data unavailable, continuing without it")
+	}
 
 	resp := &AnalisisResponse{
 		Snapshot: snapshot,
@@ -254,12 +307,187 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 	return resp, nil
 }
 
+func parseColumnarChart(chartRows []map[string]interface{}, log *logrus.Logger) ([]OHLCVRow, error) {
+	if len(chartRows) == 0 {
+		return nil, fmt.Errorf("no data block in response")
+	}
+
+	block := chartRows[0]
+
+	rawDate, _ := block["Date"].([]interface{})
+	rawOpen, _ := block["Open"].([]interface{})
+	rawHigh, _ := block["High"].([]interface{})
+	rawLow, _ := block["Low"].([]interface{})
+	rawClose, _ := block["Close"].([]interface{})
+	rawVolume, _ := block["Volume"].([]interface{})
+
+	// Validate all arrays exist and have same length
+	if rawDate == nil {
+		return nil, fmt.Errorf("missing Date column in chart response")
+	}
+	n := len(rawDate)
+	if n == 0 {
+		return nil, fmt.Errorf("empty Date array in chart response")
+	}
+
+	// Check duplicate dates
+	dateSet := make(map[string]struct{})
+	for _, d := range rawDate {
+		if s, ok := d.(string); ok && s != "" {
+			dateSet[s] = struct{}{}
+		}
+	}
+	if len(dateSet) > 0 && float64(len(dateSet))/float64(n) < 0.5 {
+		return nil, fmt.Errorf("response appears stale: %.0f%% duplicate dates", (1-float64(len(dateSet))/float64(n))*100)
+	}
+
+	// Compute median per numeric array for outlier detection
+	median := func(arr []interface{}) float64 {
+		var vals []float64
+		for _, v := range arr {
+			f, ok := toFloat64(v)
+			if ok {
+				vals = append(vals, f)
+			}
+		}
+		if len(vals) == 0 {
+			return 0
+		}
+		// quick median (unsorted, good enough for outlier check)
+		var sum float64
+		for _, v := range vals {
+			sum += v
+		}
+		return sum / float64(len(vals))
+	}
+
+	medianOpen := median(rawOpen)
+	medianClose := median(rawClose)
+
+	var result []OHLCVRow
+	for i := 0; i < n; i++ {
+		date := safeString(rawDate[i])
+		if date == "" {
+			continue
+		}
+		if idx := strings.Index(date, "T"); idx > 0 {
+			date = date[:idx]
+		}
+
+		open := toFloat64Safe(rawOpen, i)
+		high := toFloat64Safe(rawHigh, i)
+		low := toFloat64Safe(rawLow, i)
+		closeV := toFloat64Safe(rawClose, i)
+		volume := toInt64Safe(rawVolume, i)
+
+		if open == 0 && high == 0 && low == 0 && closeV == 0 && volume == 0 {
+			continue
+		}
+
+		// Outlier check: if any value deviates >50% from median, skip this row as unstable
+		if medianOpen > 0 && math.Abs(open-medianOpen)/medianOpen > 0.5 {
+			log.WithField("index", i).WithField("open", open).WithField("median", medianOpen).Warn("outlier detected in Open, retrying")
+			return nil, fmt.Errorf("outlier detected in column Open at index %d: %.2f vs median %.2f", i, open, medianOpen)
+		}
+		if medianClose > 0 && math.Abs(closeV-medianClose)/medianClose > 0.5 {
+			log.WithField("index", i).WithField("close", closeV).WithField("median", medianClose).Warn("outlier detected in Close, retrying")
+			return nil, fmt.Errorf("outlier detected in column Close at index %d: %.2f vs median %.2f", i, closeV, medianClose)
+		}
+
+		result = append(result, OHLCVRow{
+			Date:   date,
+			Open:   open,
+			High:   high,
+			Low:    low,
+			Close:  closeV,
+			Volume: volume,
+		})
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("all rows filtered out — data may not be ready yet")
+	}
+
+	return result, nil
+}
+
+// ponytail: assumes config sheet rows have 2 columns (key, value) regardless of header names
+func buildConfigMap(rows []map[string]interface{}, log *logrus.Logger) map[string]string {
+	m := make(map[string]string, len(rows))
+	for _, row := range rows {
+		var vals []string
+		for _, v := range row {
+			vals = append(vals, safeString(v))
+		}
+		if len(vals) >= 2 && vals[0] != "" {
+			m[vals[0]] = vals[1]
+		}
+	}
+	if len(m) == 0 && len(rows) > 0 {
+		// debug: log actual keys to understand response format
+		for k, v := range rows[0] {
+			log.WithField("sample_key", k).WithField("sample_val", safeString(v)).Debug("config row format")
+			break
+		}
+	}
+	return m
+}
+
+func toFloat64Safe(arr []interface{}, i int) float64 {
+	if i >= len(arr) {
+		return 0
+	}
+	v := arr[i]
+	if v == nil {
+		return 0
+	}
+	s, ok := v.(string)
+	if ok {
+		if s == "" || s == "#N/A" || s == "N/A" {
+			return 0
+		}
+		f, _ := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
+		return f
+	}
+	f, ok := v.(float64)
+	if ok {
+		return f
+	}
+	return 0
+}
+
+func toInt64Safe(arr []interface{}, i int) int64 {
+	if i >= len(arr) {
+		return 0
+	}
+	v := arr[i]
+	if v == nil {
+		return 0
+	}
+	s, ok := v.(string)
+	if ok {
+		if s == "" || s == "#N/A" || s == "N/A" {
+			return 0
+		}
+		f, _ := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
+		return int64(f)
+	}
+	f, ok := v.(float64)
+	if ok {
+		return int64(f)
+	}
+	return 0
+}
+
 func (s *AnalisisService) runPythonIndicator(ohlcv []OHLCVRow, ticker string) (*Indicators, *SignalResult, *TradingPlan, string, error) {
-	tmpDir := os.TempDir()
-	inputFile := filepath.Join(tmpDir, fmt.Sprintf("chart_%s_%d.json", ticker, time.Now().UnixNano()))
-	outFile := filepath.Join(tmpDir, fmt.Sprintf("chart_%s_%d.png", ticker, time.Now().UnixNano()))
-	defer os.Remove(inputFile)
-	defer os.Remove(outFile)
+	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("trackly_%s_*", ticker))
+	if err != nil {
+		return nil, nil, nil, "", fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	inputFile := filepath.Join(tmpDir, "input.json")
+	outFile := filepath.Join(tmpDir, "chart.png")
 
 	inputData := make([]map[string]interface{}, len(ohlcv))
 	for i, row := range ohlcv {
@@ -283,12 +511,10 @@ func (s *AnalisisService) runPythonIndicator(ohlcv []OHLCVRow, ticker string) (*
 	}
 	f.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.pythonTimeout)
 	defer cancel()
 
-	pythonCmd := "python"
-	// ponytail: use "python3" on linux, configurable if needed
-	cmd := exec.CommandContext(ctx, pythonCmd, s.pythonPath,
+	cmd := exec.CommandContext(ctx, s.pythonBin, s.pythonPath,
 		"--input", inputFile,
 		"--ticker", ticker,
 		"--out", outFile,
@@ -302,9 +528,9 @@ func (s *AnalisisService) runPythonIndicator(ohlcv []OHLCVRow, ticker string) (*
 	}
 
 	type pyOutput struct {
-		Indicators   map[string]interface{} `json:"indicators"`
-		Signal       map[string]interface{} `json:"signal"`
-		TradingPlan  map[string]interface{} `json:"trading_plan"`
+		Indicators  map[string]interface{} `json:"indicators"`
+		Signal      map[string]interface{} `json:"signal"`
+		TradingPlan map[string]interface{} `json:"trading_plan"`
 	}
 	var py pyOutput
 	if err := json.Unmarshal(output, &py); err != nil {
@@ -364,9 +590,11 @@ func mapSignal(m map[string]interface{}) *SignalResult {
 		return nil
 	}
 	sig := &SignalResult{
-		Overall: strVal(m["overall"]),
-		Score:   floatVal(m["score"]),
-		Ticker:  strVal(m["ticker"]),
+		Overall:           strVal(m["overall"]),
+		Score:             floatVal(m["score"]),
+		Confidence:        strVal(m["confidence"]),
+		TrendFilterPassed: boolPtrVal(m["trend_filter_passed"]),
+		Ticker:            strVal(m["ticker"]),
 	}
 	if bd, ok := m["breakdown"].([]interface{}); ok {
 		for _, item := range bd {
@@ -388,13 +616,15 @@ func mapTradingPlan(m map[string]interface{}) *TradingPlan {
 		return nil
 	}
 	plan := &TradingPlan{
-		Bias:                    strVal(m["bias"]),
-		EntryZone:               floatPtrVal(m["entry_zone"]),
-		EntryPrice:              floatPtrVal(m["entry_price"]),
-		StopLoss:                floatPtrVal(m["stop_loss"]),
+		Bias:                     strVal(m["bias"]),
+		EntryZone:                floatPtrVal(m["entry_zone"]),
+		EntryPrice:               floatPtrVal(m["entry_price"]),
+		StopLoss:                 floatPtrVal(m["stop_loss"]),
 		SuggestedPositionSizePct: floatVal(m["suggested_position_size_pct"]),
-		InvalidationNote:        strVal(m["invalidation_note"]),
-		Disclaimer:              strVal(m["disclaimer"]),
+		SuggestedLots:            intPtrVal(m["suggested_lots"]),
+		TimeStopDays:             intVal(m["time_stop_days"]),
+		InvalidationNote:         strVal(m["invalidation_note"]),
+		Disclaimer:               strVal(m["disclaimer"]),
 	}
 	if tgts, ok := m["targets"].([]interface{}); ok {
 		for _, item := range tgts {
@@ -454,6 +684,29 @@ func strVal(v interface{}) string {
 func boolVal(v interface{}) bool {
 	b, _ := v.(bool)
 	return b
+}
+
+func boolPtrVal(v interface{}) *bool {
+	if v == nil {
+		return nil
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return nil
+	}
+	return &b
+}
+
+func intPtrVal(v interface{}) *int {
+	if v == nil {
+		return nil
+	}
+	f, ok := toFloat64(v)
+	if !ok {
+		return nil
+	}
+	i := int(f)
+	return &i
 }
 
 func toFloat64(v interface{}) (float64, bool) {

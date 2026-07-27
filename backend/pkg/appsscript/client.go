@@ -28,6 +28,7 @@ type appsScriptResponse struct {
 	Data    []map[string]interface{} `json:"data"`
 }
 
+// TODO(D2): accept context.Context, use http.NewRequestWithContext
 func (c *Client) GetSheet(sheet string) ([]map[string]interface{}, error) {
 	u, err := url.Parse(c.baseURL)
 	if err != nil {

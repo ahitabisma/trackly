@@ -64,16 +64,18 @@ def compute_all(df):
     vma = vol_ma20.iloc[-1]
     result['volume_spike'] = bool(vl > vma * 2) if not (pd.isna(vma) or vma == 0) else False
 
-    sw_high, sw_low = _swing_points(high.values, low.values, 5)
-    result['support'] = float(round(min(sw_low[-3:]) if len(sw_low) >= 3 else (min(sw_low) if sw_low else min(low.values)), 2))
-    result['resistance'] = float(round(max(sw_high[-3:]) if len(sw_high) >= 3 else (max(sw_high) if sw_high else max(high.values)), 2))
+    sw_high, sw_low = _swing_points(high.values, low.values, df.index, 5)
+    sw_high_prices = [p for _, p in sw_high]
+    sw_low_prices = [p for _, p in sw_low]
+    result['support'] = float(round(min(sw_low_prices[-3:]) if len(sw_low_prices) >= 3 else (min(sw_low_prices) if sw_low_prices else min(low.values)), 2))
+    result['resistance'] = float(round(max(sw_high_prices[-3:]) if len(sw_high_prices) >= 3 else (max(sw_high_prices) if sw_high_prices else max(high.values)), 2))
 
     fib_high = max(high.values)
     fib_low = min(low.values)
-    if sw_high:
-        fib_high = sw_high[-1]
-    if sw_low:
-        fib_low = sw_low[-1]
+    if sw_high_prices:
+        fib_high = sw_high_prices[-1]
+    if sw_low_prices:
+        fib_low = sw_low_prices[-1]
     diff = float(fib_high - fib_low)
     if diff > 0:
         result['fib_23_6'] = float(round(fib_high - 0.236 * diff, 2))
@@ -117,14 +119,14 @@ def _last(s):
         return None
 
 
-def _swing_points(highs, lows, window=5):
+def _swing_points(highs, lows, idx, window=5):
     local_max, local_min = [], []
     n = len(highs)
     if n < window * 2 + 1:
         return [], []
     for i in range(window, n - window):
         if highs[i] == max(highs[i - window:i + window + 1]):
-            local_max.append(highs[i])
+            local_max.append((idx[i], highs[i]))
         if lows[i] == min(lows[i - window:i + window + 1]):
-            local_min.append(lows[i])
+            local_min.append((idx[i], lows[i]))
     return local_max, local_min

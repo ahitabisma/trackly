@@ -1,7 +1,9 @@
 import math
 
 RISK_PER_TRADE_PCT = 0.01
+ATR_MULT_SL = 2.5
 R_MULTIPLIERS = [1.5, 2.5, 3.5]
+TIME_STOP_DAYS = 20
 
 
 def _f(v):
@@ -25,7 +27,7 @@ def compute(ind, signal):
     if overall == 'bullish' or overall == 'neutral':
         bias = 'buy'
         entry = last_close_f
-        stop_loss = _f(entry - atr * 1.5) if atr else (_f(support) if support else None)
+        stop_loss = _f(entry - atr * ATR_MULT_SL) if atr else (_f(support) if support else None)
         targets = []
         for mult in R_MULTIPLIERS:
             tp = _f(entry + atr * mult) if atr else (_f(resistance * (1 + 0.02 * mult)) if resistance else None)
@@ -34,7 +36,7 @@ def compute(ind, signal):
     elif overall == 'bearish':
         bias = 'sell'
         entry = last_close_f
-        stop_loss = _f(entry + atr * 1.5) if atr else (_f(resistance) if resistance else None)
+        stop_loss = _f(entry + atr * ATR_MULT_SL) if atr else (_f(resistance) if resistance else None)
         targets = []
         for mult in R_MULTIPLIERS:
             tp = _f(entry - atr * mult) if atr else (_f(support * (1 - 0.02 * mult)) if support else None)
@@ -68,6 +70,8 @@ def compute(ind, signal):
         'stop_loss': _f(stop_loss),
         'targets': tp_list,
         'suggested_position_size_pct': suggested_size,
+        'suggested_lots': None,
+        'time_stop_days': TIME_STOP_DAYS,
         'invalidation_note': invalidation,
         'disclaimer': _disclaimer(),
     }
@@ -78,6 +82,8 @@ def _empty(reason):
         'bias': 'hold', 'entry_zone': None, 'entry_price': None,
         'stop_loss': None, 'targets': [],
         'suggested_position_size_pct': 0,
+        'suggested_lots': None,
+        'time_stop_days': TIME_STOP_DAYS,
         'invalidation_note': reason,
         'disclaimer': _disclaimer(),
     }
@@ -89,6 +95,7 @@ def _invalidation_note(bias, stop, signal):
         parts.append('Overall signal is neutral — plan has lower confidence')
     parts.append(f'Stop loss at {stop}')
     parts.append('Invalidated if opposite signal confluence >= 3 indicators')
+    parts.append(f'Time stop: {TIME_STOP_DAYS} trading days (~4 weeks)')
     return '. '.join(parts)
 
 

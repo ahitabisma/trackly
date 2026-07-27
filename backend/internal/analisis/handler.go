@@ -2,6 +2,7 @@ package analisis
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"trackly-backend/pkg/httpx"
 	customLogger "trackly-backend/pkg/logger"
@@ -99,6 +100,11 @@ func (h *AnalisisHandler) PostAnalisis(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.svc.RunAnalisis(r.Context(), &req)
 	if err != nil {
+		if errors.Is(err, ErrWorkerPoolBusy) {
+			resp := httpx.Error(httpx.ErrTooManyRequests, "Server sedang sibuk, coba lagi sebentar lagi", "")
+			httpx.WriteJSON(w, r, http.StatusServiceUnavailable, resp)
+			return
+		}
 		resp := httpx.Error(httpx.ErrInternal, "Analisis failed", err.Error())
 		customLogger.LogHTTPInternalError(h.log, resp, map[string]interface{}{"ticker": req.Ticker})
 		httpx.WriteJSON(w, r, http.StatusInternalServerError, resp)

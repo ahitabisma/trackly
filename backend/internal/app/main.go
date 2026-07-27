@@ -110,9 +110,11 @@ func Run() error {
 
 	// analisis service + handler
 	appsscriptClient := appsscript.NewClient(cfg.AppsScript.URL, time.Duration(cfg.AppsScript.Timeout)*time.Second)
+	workerPool := analisis.NewWorkerPool(log)
 	analisisService := analisis.NewAnalisisService(
 		appsscriptClient,
 		log,
+		workerPool,
 		cfg.AppsScript.PythonScriptPath,
 		time.Duration(cfg.AppsScript.PollIntervalMs)*time.Millisecond,
 		cfg.AppsScript.PollMaxRetries,

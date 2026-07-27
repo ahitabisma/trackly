@@ -10,6 +10,7 @@ const (
 	ErrForbidden          ErrorCode = "FORBIDDEN"
 	ErrConflict           ErrorCode = "CONFLICT"
 	ErrUnauthorized       ErrorCode = "UNAUTHORIZED"
+	ErrTooManyRequests    ErrorCode = "TOO_MANY_REQUESTS"
 )
 
 type ErrorResponse struct {

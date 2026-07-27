@@ -32,6 +32,26 @@ def render(df, ind, signal, trading_plan, out_path, ticker):
     panels = {'main': True, 'volume': True, 'rsi': False, 'macd': False, 'stoch': False}
     p = 1
 
+    # Trend & volatility overlays on main panel
+    sma20, sma50, sma200 = series.get('sma20'), series.get('sma50'), series.get('sma200')
+    ema20, ema50 = series.get('ema20'), series.get('ema50')
+    bb_u, bb_m, bb_l = series.get('bb_upper'), series.get('bb_middle'), series.get('bb_lower')
+
+    if _valid(sma20):
+        apds.append(mpf.make_addplot(sma20, panel=0, color='#1565c0', width=0.7, alpha=0.7))
+    if _valid(sma50):
+        apds.append(mpf.make_addplot(sma50, panel=0, color='#e65100', width=0.7, alpha=0.7))
+    if _valid(sma200):
+        apds.append(mpf.make_addplot(sma200, panel=0, color='#c62828', width=0.7, alpha=0.7))
+    if _valid(ema20):
+        apds.append(mpf.make_addplot(ema20, panel=0, color='#00695c', width=0.6, alpha=0.6, linestyle='--'))
+    if _valid(ema50):
+        apds.append(mpf.make_addplot(ema50, panel=0, color='#4a148c', width=0.6, alpha=0.6, linestyle='--'))
+    if _valid(bb_u) and _valid(bb_m) and _valid(bb_l):
+        apds.append(mpf.make_addplot(bb_u, panel=0, color='#78909c', width=0.5, alpha=0.4, linestyle=':'))
+        apds.append(mpf.make_addplot(bb_m, panel=0, color='#78909c', width=0.5, alpha=0.4))
+        apds.append(mpf.make_addplot(bb_l, panel=0, color='#78909c', width=0.5, alpha=0.4, linestyle=':'))
+
     # Volume
     vol_ma = series.get('volume_ma20')
     apds.append(mpf.make_addplot(df['volume'], panel=p, color='#78909c', type='bar', width=0.6, alpha=0.4, ylabel='Volume'))
@@ -89,16 +109,30 @@ def render(df, ind, signal, trading_plan, out_path, ticker):
 
     ax_main = axes[0]
     idx = df.index
-    for sh in sw_high[-10:]:
-        mask = (df['high'] - sh).abs() < sh * 0.005
-        if mask.any():
-            pt = idx[mask][-1]
-            ax_main.scatter(mdates.date2num(pt), sh, marker='v', color='#ef5350', s=30, zorder=5)
-    for sl in sw_low[-10:]:
-        mask = (df['low'] - sl).abs() < sl * 0.005
-        if mask.any():
-            pt = idx[mask][-1]
-            ax_main.scatter(mdates.date2num(pt), sl, marker='^', color='#26a69a', s=30, zorder=5)
+
+    # Support & Resistance lines
+    support = ind.get('support')
+    resistance = ind.get('resistance')
+    if support:
+        ax_main.axhline(y=support, color='#26a69a', linestyle='--', linewidth=0.8, alpha=0.5)
+        ax_main.annotate(f'Sup {support}', xy=(idx[0], support), fontsize=7, color='#26a69a', fontweight='bold')
+    if resistance:
+        ax_main.axhline(y=resistance, color='#ef5350', linestyle='--', linewidth=0.8, alpha=0.5)
+        ax_main.annotate(f'Res {resistance}', xy=(idx[0], resistance), fontsize=7, color='#ef5350', fontweight='bold')
+
+    # Fibonacci retracement lines
+    fib_keys = [('fib_61_8', '#1565c0'), ('fib_50_0', '#1565c0'), ('fib_38_2', '#1565c0'), ('fib_23_6', '#1565c0')]
+    for key, color in fib_keys:
+        val = ind.get(key)
+        if val is not None:
+            ax_main.axhline(y=val, color=color, linestyle=':', linewidth=0.5, alpha=0.3)
+            ax_main.annotate(f'{key.split("_")[1]}_{key.split("_")[2]} {val}',
+                             xy=(idx[-1], val), fontsize=6, color=color, alpha=0.5)
+
+    for pt, price in sw_high[-10:]:
+        ax_main.scatter(mdates.date2num(pt), price, marker='v', color='#ef5350', s=30, zorder=5)
+    for pt, price in sw_low[-10:]:
+        ax_main.scatter(mdates.date2num(pt), price, marker='^', color='#26a69a', s=30, zorder=5)
 
     tp = trading_plan
     if tp and tp.get('bias') != 'hold' and tp.get('entry_price'):

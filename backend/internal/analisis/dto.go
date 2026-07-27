@@ -69,10 +69,12 @@ type Indicators struct {
 }
 
 type SignalResult struct {
-	Overall    string               `json:"overall"`
-	Score      float64              `json:"score"`
-	Breakdown  []SignalBreakdown    `json:"breakdown"`
-	Ticker     string               `json:"ticker"`
+	Overall           string               `json:"overall"`
+	Score             float64              `json:"score"`
+	Confidence        string               `json:"confidence"`
+	TrendFilterPassed *bool                `json:"trend_filter_passed"`
+	Breakdown         []SignalBreakdown    `json:"breakdown"`
+	Ticker            string               `json:"ticker"`
 }
 
 type SignalBreakdown struct {
@@ -89,6 +91,8 @@ type TradingPlan struct {
 	StopLoss                *float64      `json:"stop_loss,omitempty"`
 	Targets                 []TPTarget    `json:"targets,omitempty"`
 	SuggestedPositionSizePct float64      `json:"suggested_position_size_pct"`
+	SuggestedLots           *int          `json:"suggested_lots"`
+	TimeStopDays            int           `json:"time_stop_days"`
 	InvalidationNote        string        `json:"invalidation_note"`
 	Disclaimer              string        `json:"disclaimer"`
 }

@@ -69,6 +69,8 @@ export interface SignalBreakdown {
 export interface SignalResult {
     overall: string
     score: number
+    confidence: string
+    trend_filter_passed: boolean | null
     breakdown: SignalBreakdown[]
     ticker: string
 }
@@ -86,6 +88,8 @@ export interface TradingPlan {
     stop_loss: number | null
     targets: TPTarget[]
     suggested_position_size_pct: number
+    suggested_lots: number | null
+    time_stop_days: number
     invalidation_note: string
     disclaimer: string
 }

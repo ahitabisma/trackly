@@ -50,7 +50,7 @@ const clearTicker = () => {
 }
 
 const submit = () => {
-    if (!selectedTicker.value) return
+    if (!selectedTicker.value || !dateStart.value || !dateEnd.value) return
     runAnalisis(selectedTicker.value.kode, dateStart.value, dateEnd.value)
 }
 
@@ -110,7 +110,7 @@ function drawChart(ohlcv: { date: string; open: number; high: number; low: numbe
         .attr('font-size', '10px')
 
     g.append('g')
-        .call(d3.axisLeft(yScale).ticks(6).tickFormat(d => formatPrice(d) as any))
+        .call(d3.axisLeft(yScale).ticks(6).tickFormat(d => formatPrice(d as number) as any))
         .selectAll('text')
         .attr('font-family', 'Share Tech Mono')
         .attr('font-size', '10px')
@@ -355,12 +355,21 @@ onUnmounted(() => {
                 <div v-if="result.signal" class="fu3 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
                     style="box-shadow:4px 4px 0 #1a1612">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
-                        <h2 class="font-mono text-xs text-muted uppercase tracking-wider shrink-0">Sinyal</h2>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <h2 class="font-mono text-xs text-muted uppercase tracking-wider">Sinyal</h2>
+                            <span class="font-mono text-[10px] bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded-md">Swing 1-4 Minggu</span>
+                        </div>
                         <span class="font-mono text-xs font-bold px-3 py-1 rounded-md border-2"
                             :class="signalBadge.class">
                             {{ signalBadge.label }}
                         </span>
                         <span class="font-mono text-xs text-muted">Skor: {{ result.signal.score.toFixed(2) }}</span>
+                        <span v-if="result.signal.confidence" class="font-mono text-xs px-2 py-0.5 rounded border"
+                            :class="result.signal.confidence === 'high' ? 'bg-green-50 text-green-700 border-green-200' : result.signal.confidence === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 'bg-gray-50 text-gray-500 border-gray-200'">
+                            {{ result.signal.confidence.toUpperCase() }}
+                        </span>
+                        <span v-if="result.signal.trend_filter_passed === true" class="font-mono text-[10px] text-green-600">Trend Filter ✓</span>
+                        <span v-else-if="result.signal.trend_filter_passed === false" class="font-mono text-[10px] text-red-500">Trend Filter ✗</span>
                         <button class="font-mono text-xs text-bluedk underline ml-auto" @click="signalExpanded = !signalExpanded">
                             {{ signalExpanded ? 'Sembunyikan' : 'Detail' }}
                         </button>
@@ -404,6 +413,9 @@ onUnmounted(() => {
                     style="box-shadow:4px 4px 0 #1a1612">
                     <h2 class="font-mono text-xs text-muted uppercase tracking-wider mb-4">Trading Plan</h2>
 
+                    <div v-if="result.trading_plan.time_stop_days" class="mb-3">
+                        <span class="font-mono text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">Time Stop: {{ result.trading_plan.time_stop_days }} hari</span>
+                    </div>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
                         <div>
                             <div class="font-mono text-xs text-muted uppercase">Bias</div>
