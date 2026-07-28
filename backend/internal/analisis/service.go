@@ -1,6 +1,7 @@
 package analisis
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -262,7 +263,8 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 		case <-time.After(s.pollInterval):
 		}
 
-		chartRows, pollErr := s.client.GetSheet(chartSheet)
+		var chartRows []map[string]interface{}
+		chartRows, pollErr = s.client.GetSheet(chartSheet)
 		if pollErr != nil {
 			s.log.WithError(pollErr).Warn("poll chart sheet attempt failed")
 			continue
@@ -298,7 +300,8 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 	if len(ohlcv) > 0 {
 		ind, sig, plan, chartImg, err := s.runPythonIndicator(ohlcv, req.Ticker)
 		if err != nil {
-			s.log.WithError(err).Warn("python indicator calculation failed, skipping")
+			resp.Error = fmt.Sprintf("indicator calculation failed: %v", err)
+			s.log.Warnf("python indicator calculation failed: %v", err)
 		} else {
 			resp.Indicators = ind
 			resp.Signal = sig
@@ -376,7 +379,42 @@ func buildConfigMap(rows []map[string]interface{}) map[string]string {
 	return m
 }
 
+func (s *AnalisisService) findPython() string {
+	candidates := []string{"python3", "py", "python"}
+	if s.pythonBin != "python" {
+		candidates = append([]string{s.pythonBin}, candidates...)
+	}
+	for _, name := range candidates {
+		if name == "" {
+			continue
+		}
+		path, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		// verify it's real Python (not Store redirector) by running --version
+		cmd := exec.Command(path, "--version")
+		if out, err := cmd.CombinedOutput(); err == nil && len(out) > 0 {
+			return name
+		}
+	}
+	return s.pythonBin
+}
+
 func (s *AnalisisService) runPythonIndicator(ohlcv []OHLCVRow, ticker string) (*Indicators, *SignalResult, *TradingPlan, string, error) {
+	pythonBin := s.findPython()
+	absScript, err := filepath.Abs(s.pythonPath)
+	if err != nil {
+		return nil, nil, nil, "", fmt.Errorf("resolve python script path: %w", err)
+	}
+
+	s.log.WithFields(logrus.Fields{
+		"python_bin":   pythonBin,
+		"script_path":  absScript,
+		"ticker":       ticker,
+		"ohlcv_bars":   len(ohlcv),
+	}).Debug("running python indicator script")
+
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("trackly_%s_*", ticker))
 	if err != nil {
 		return nil, nil, nil, "", fmt.Errorf("create temp dir: %w", err)
@@ -411,27 +449,66 @@ func (s *AnalisisService) runPythonIndicator(ohlcv []OHLCVRow, ticker string) (*
 	ctx, cancel := context.WithTimeout(context.Background(), s.pythonTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, s.pythonBin, s.pythonPath,
+	var stdout, stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, pythonBin, absScript,
 		"--input", inputFile,
 		"--ticker", ticker,
 		"--out", outFile,
 	)
-	output, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, nil, nil, "", fmt.Errorf("python error: %s", string(exitErr.Stderr))
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		stderrStr := strings.TrimSpace(stderr.String())
+		stdoutStr := strings.TrimSpace(stdout.String())
+		s.log.WithFields(logrus.Fields{
+			"python_bin":  pythonBin,
+			"script_path": absScript,
+			"stdout":      stdoutStr,
+			"stderr":      stderrStr,
+			"stdout_len":  len(stdoutStr),
+			"stderr_len":  len(stderrStr),
+		}).Warn("python process failed")
+		if stderrStr != "" {
+			return nil, nil, nil, "", fmt.Errorf("python error (bin=%s script=%s): %s", pythonBin, absScript, stderrStr)
 		}
-		return nil, nil, nil, "", fmt.Errorf("python exec: %w", err)
+		return nil, nil, nil, "", fmt.Errorf("python exec (bin=%s): %w", pythonBin, err)
+	}
+
+	stdoutBytes := stdout.Bytes()
+	if len(bytes.TrimSpace(stdoutBytes)) == 0 {
+		stderrStr := strings.TrimSpace(stderr.String())
+		s.log.WithFields(logrus.Fields{
+			"python_bin":  pythonBin,
+			"script_path": absScript,
+			"stderr":      stderrStr,
+			"stderr_len":  len(stderrStr),
+		}).Warn("python produced empty stdout")
+		return nil, nil, nil, "", fmt.Errorf("python produced empty stdout (stderr: %s)", stderrStr)
 	}
 
 	type pyOutput struct {
+		Error       string                 `json:"error"`
 		Indicators  map[string]interface{} `json:"indicators"`
 		Signal      map[string]interface{} `json:"signal"`
 		TradingPlan map[string]interface{} `json:"trading_plan"`
 	}
 	var py pyOutput
-	if err := json.Unmarshal(output, &py); err != nil {
-		return nil, nil, nil, "", fmt.Errorf("decode python output: %w", err)
+	if err := json.Unmarshal(stdoutBytes, &py); err != nil {
+		stderrStr := strings.TrimSpace(stderr.String())
+		s.log.WithFields(logrus.Fields{
+			"stdout":      string(stdoutBytes),
+			"stdout_len":  len(stdoutBytes),
+			"stderr":      stderrStr,
+			"stderr_len":  len(stderrStr),
+		}).Warn("python output decode failed")
+		return nil, nil, nil, "", fmt.Errorf("decode python output (stdout=%q): %w", string(stdoutBytes), err)
+	}
+	if py.Error != "" {
+		return nil, nil, nil, "", fmt.Errorf("python error: %s", py.Error)
+	}
+	if py.Indicators == nil || py.Signal == nil || py.TradingPlan == nil {
+		return nil, nil, nil, "", fmt.Errorf("incomplete python output: indicators=%v signal=%v trading_plan=%v", py.Indicators == nil, py.Signal == nil, py.TradingPlan == nil)
 	}
 
 	ind := mapIndicators(py.Indicators)

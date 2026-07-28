@@ -123,9 +123,9 @@ def compute(ind, ticker):
     sma200 = ind.get('sma200')
     if sma200 is not None and last_close is not None:
         if overall == 'bullish':
-            trend_filter_passed = last_close > sma200
+            trend_filter_passed = bool(last_close > sma200)
         elif overall == 'bearish':
-            trend_filter_passed = last_close < sma200
+            trend_filter_passed = bool(last_close < sma200)
         else:
             trend_filter_passed = True
 

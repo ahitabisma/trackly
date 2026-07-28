@@ -1,5 +1,6 @@
 import argparse, json, sys, os
 import pandas as pd
+import numpy as np
 
 from indicators import compute_all
 from signals import compute as compute_signals
@@ -8,6 +9,19 @@ from chart_renderer import render as render_chart
 
 REQUIRED_COLS = ['date', 'open', 'high', 'low', 'close', 'volume']
 MIN_BARS = 30
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, (np.bool_,)):
+            return bool(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
 def _validate(df):
@@ -36,13 +50,13 @@ def main():
             rows = json.load(f)
 
         if not rows:
-            json.dump({'error': 'no data'}, sys.stdout)
+            sys.stdout.write(json.dumps({'error': 'no data'}, cls=_NumpyEncoder))
             return
 
         df = pd.DataFrame(rows)
         err = _validate(df)
         if err:
-            json.dump({'error': err}, sys.stdout)
+            sys.stdout.write(json.dumps({'error': err}, cls=_NumpyEncoder))
             return
 
         ind = compute_all(df)
@@ -56,10 +70,10 @@ def main():
             'signal': signal,
             'trading_plan': plan,
         }
-        json.dump(output, sys.stdout)
+        sys.stdout.write(json.dumps(output, cls=_NumpyEncoder))
 
     except Exception as e:
-        json.dump({'error': f'unexpected error: {e}'}, sys.stdout)
+        sys.stdout.write(json.dumps({'error': f'unexpected error: {e}'}, cls=_NumpyEncoder))
 
 
 if __name__ == '__main__':

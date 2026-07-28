@@ -7,6 +7,7 @@ type AnalisisRequest struct {
 }
 
 type AnalisisResponse struct {
+	Error        string             `json:"error,omitempty"`
 	Snapshot     *Snapshot          `json:"snapshot,omitempty"`
 	OHLCV        []OHLCVRow         `json:"ohlcv,omitempty"`
 	Indicators   *Indicators        `json:"indicators,omitempty"`
