@@ -268,9 +268,9 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 			continue
 		}
 
-		ohlcv, pollErr = parseColumnarChart(chartRows, s.log)
+		ohlcv, pollErr = parseChartRows(chartRows)
 		if pollErr != nil {
-			s.log.WithError(pollErr).Warn("parse columnar chart attempt failed")
+			s.log.WithError(pollErr).Warn("parse chart rows failed")
 			continue
 		}
 
@@ -309,66 +309,16 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 	return resp, nil
 }
 
-func parseColumnarChart(chartRows []map[string]interface{}, log *logrus.Logger) ([]OHLCVRow, error) {
+func parseChartRows(chartRows []map[string]interface{}) ([]OHLCVRow, error) {
 	if len(chartRows) == 0 {
-		return nil, fmt.Errorf("no data block in response")
+		return nil, fmt.Errorf("empty chart data")
 	}
-
-	block := chartRows[0]
-
-	rawDate, _ := block["Date"].([]interface{})
-	rawOpen, _ := block["Open"].([]interface{})
-	rawHigh, _ := block["High"].([]interface{})
-	rawLow, _ := block["Low"].([]interface{})
-	rawClose, _ := block["Close"].([]interface{})
-	rawVolume, _ := block["Volume"].([]interface{})
-
-	// Validate all arrays exist and have same length
-	if rawDate == nil {
-		return nil, fmt.Errorf("missing Date column in chart response")
-	}
-	n := len(rawDate)
-	if n == 0 {
-		return nil, fmt.Errorf("empty Date array in chart response")
-	}
-
-	// Check duplicate dates
-	dateSet := make(map[string]struct{})
-	for _, d := range rawDate {
-		if s, ok := d.(string); ok && s != "" {
-			dateSet[s] = struct{}{}
-		}
-	}
-	if len(dateSet) > 0 && float64(len(dateSet))/float64(n) < 0.5 {
-		return nil, fmt.Errorf("response appears stale: %.0f%% duplicate dates", (1-float64(len(dateSet))/float64(n))*100)
-	}
-
-	// Compute median per numeric array for outlier detection
-	median := func(arr []interface{}) float64 {
-		var vals []float64
-		for _, v := range arr {
-			f, ok := toFloat64(v)
-			if ok {
-				vals = append(vals, f)
-			}
-		}
-		if len(vals) == 0 {
-			return 0
-		}
-		// quick median (unsorted, good enough for outlier check)
-		var sum float64
-		for _, v := range vals {
-			sum += v
-		}
-		return sum / float64(len(vals))
-	}
-
-	medianOpen := median(rawOpen)
-	medianClose := median(rawClose)
 
 	var result []OHLCVRow
-	for i := 0; i < n; i++ {
-		date := safeString(rawDate[i])
+	dateSet := make(map[string]struct{})
+
+	for _, row := range chartRows {
+		date := safeString(row["Date"])
 		if date == "" {
 			continue
 		}
@@ -376,44 +326,35 @@ func parseColumnarChart(chartRows []map[string]interface{}, log *logrus.Logger) 
 			date = date[:idx]
 		}
 
-		open := toFloat64Safe(rawOpen, i)
-		high := toFloat64Safe(rawHigh, i)
-		low := toFloat64Safe(rawLow, i)
-		closeV := toFloat64Safe(rawClose, i)
-		volume := toInt64Safe(rawVolume, i)
+		open := safeFloat(row["Open"])
+		high := safeFloat(row["High"])
+		low := safeFloat(row["Low"])
+		closeV := safeFloat(row["Close"])
+		volume := safeInt64(row["Volume"])
 
-		if open == 0 && high == 0 && low == 0 && closeV == 0 && volume == 0 {
+		if open == 0 || high == 0 || low == 0 || closeV == 0 {
 			continue
 		}
 
-		// Outlier check: if any value deviates >50% from median, skip this row as unstable
-		if medianOpen > 0 && math.Abs(open-medianOpen)/medianOpen > 0.5 {
-			log.WithField("index", i).WithField("open", open).WithField("median", medianOpen).Warn("outlier detected in Open, retrying")
-			return nil, fmt.Errorf("outlier detected in column Open at index %d: %.2f vs median %.2f", i, open, medianOpen)
-		}
-		if medianClose > 0 && math.Abs(closeV-medianClose)/medianClose > 0.5 {
-			log.WithField("index", i).WithField("close", closeV).WithField("median", medianClose).Warn("outlier detected in Close, retrying")
-			return nil, fmt.Errorf("outlier detected in column Close at index %d: %.2f vs median %.2f", i, closeV, medianClose)
-		}
-
+		dateSet[date] = struct{}{}
 		result = append(result, OHLCVRow{
-			Date:   date,
-			Open:   open,
-			High:   high,
-			Low:    low,
-			Close:  closeV,
-			Volume: volume,
+			Date: date, Open: open, High: high,
+			Low: low, Close: closeV, Volume: volume,
 		})
 	}
 
 	if len(result) == 0 {
-		return nil, fmt.Errorf("all rows filtered out — data may not be ready yet")
+		return nil, fmt.Errorf("all rows filtered out — data not ready yet")
+	}
+
+	uniqRatio := float64(len(dateSet)) / float64(len(result))
+	if uniqRatio < 0.2 {
+		return nil, fmt.Errorf("stale data: %.0f%% dates are duplicates", (1-uniqRatio)*100)
 	}
 
 	return result, nil
 }
 
-// ponytail: assumes config sheet rows have 2 columns (key, value) regardless of header names
 func buildConfigMap(rows []map[string]interface{}) map[string]string {
 	m := make(map[string]string, len(rows))
 	for _, row := range rows {
@@ -433,52 +374,6 @@ func buildConfigMap(rows []map[string]interface{}) map[string]string {
 		}
 	}
 	return m
-}
-
-func toFloat64Safe(arr []interface{}, i int) float64 {
-	if i >= len(arr) {
-		return 0
-	}
-	v := arr[i]
-	if v == nil {
-		return 0
-	}
-	s, ok := v.(string)
-	if ok {
-		if s == "" || s == "#N/A" || s == "N/A" {
-			return 0
-		}
-		f, _ := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
-		return f
-	}
-	f, ok := v.(float64)
-	if ok {
-		return f
-	}
-	return 0
-}
-
-func toInt64Safe(arr []interface{}, i int) int64 {
-	if i >= len(arr) {
-		return 0
-	}
-	v := arr[i]
-	if v == nil {
-		return 0
-	}
-	s, ok := v.(string)
-	if ok {
-		if s == "" || s == "#N/A" || s == "N/A" {
-			return 0
-		}
-		f, _ := strconv.ParseFloat(strings.ReplaceAll(s, ",", ""), 64)
-		return int64(f)
-	}
-	f, ok := v.(float64)
-	if ok {
-		return int64(f)
-	}
-	return 0
 }
 
 func (s *AnalisisService) runPythonIndicator(ohlcv []OHLCVRow, ticker string) (*Indicators, *SignalResult, *TradingPlan, string, error) {
