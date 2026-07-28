@@ -246,7 +246,9 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 	}
 
 	if !echoCheck() {
-		return nil, fmt.Errorf("echo-check failed: config write did not propagate for slot %d", slot)
+		rows, _ := s.client.GetSheet("config")
+		cfgDump := buildConfigMap(rows)
+		return nil, fmt.Errorf("echo-check failed: slot %d ticker %q not in config: %v", slot, req.Ticker, cfgDump)
 	}
 
 	chartSheet := fmt.Sprintf("chart_%d", slot)

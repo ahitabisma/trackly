@@ -27,7 +27,7 @@
                         <span class="font-mono text-xs text-muted uppercase tracking-wider">Email</span>
                         <span class="font-sans text-sm text-ink">{{ user?.email || '—' }}</span>
                     </div>
-                    <div class="flex items-center justify-between py-2 border-t border-bdr">
+                    <div v-if="user?.role === 'admin'" class="flex items-center justify-between py-2 border-t border-bdr">
                         <span class="font-mono text-xs text-muted uppercase tracking-wider">Role</span>
                         <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-md"
                             :class="user?.role === 'admin' ? 'bg-amber-100 text-amber-800' : 'bg-bluebg text-bluedk'">
