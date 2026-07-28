@@ -225,7 +225,7 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
-			m := buildConfigMap(rows, s.log)
+			m := buildConfigMap(rows)
 			if v, ok := m[fmt.Sprintf("selected_ticker_%d", slot)]; ok && v == req.Ticker {
 				return true
 			}
@@ -412,22 +412,22 @@ func parseColumnarChart(chartRows []map[string]interface{}, log *logrus.Logger) 
 }
 
 // ponytail: assumes config sheet rows have 2 columns (key, value) regardless of header names
-func buildConfigMap(rows []map[string]interface{}, log *logrus.Logger) map[string]string {
+func buildConfigMap(rows []map[string]interface{}) map[string]string {
 	m := make(map[string]string, len(rows))
 	for _, row := range rows {
-		var vals []string
+		var key, val string
 		for _, v := range row {
-			vals = append(vals, safeString(v))
+			s := safeString(v)
+			if strings.HasPrefix(s, "selected_ticker_") ||
+				strings.HasPrefix(s, "date_start_") ||
+				strings.HasPrefix(s, "date_end_") {
+				key = s
+			} else if s != "" {
+				val = s
+			}
 		}
-		if len(vals) >= 2 && vals[0] != "" {
-			m[vals[0]] = vals[1]
-		}
-	}
-	if len(m) == 0 && len(rows) > 0 {
-		// debug: log actual keys to understand response format
-		for k, v := range rows[0] {
-			log.WithField("sample_key", k).WithField("sample_val", safeString(v)).Debug("config row format")
-			break
+		if key != "" {
+			m[key] = val
 		}
 	}
 	return m
