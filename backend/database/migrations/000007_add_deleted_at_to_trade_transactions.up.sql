@@ -1,0 +1,1 @@
+ALTER TABLE trade_transactions ADD COLUMN deleted_at TIMESTAMPTZ;

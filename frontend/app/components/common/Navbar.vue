@@ -56,6 +56,12 @@ onUnmounted(() => {
                 <NuxtLink v-if="isLoggedIn" to="/analisis" :class="getLinkClassName('/analisis')">
                     Analisis
                 </NuxtLink>
+                <NuxtLink v-if="isLoggedIn" to="/positions" :class="getLinkClassName('/positions')">
+                    Posisi
+                </NuxtLink>
+                <NuxtLink v-if="isLoggedIn" to="/trading" :class="getLinkClassName('/trading')">
+                    Trading
+                </NuxtLink>
 
                 <template v-if="isLoggedIn">
                     <div data-profile-dropdown class="relative">
@@ -111,6 +117,12 @@ onUnmounted(() => {
             <div class="max-w-7xl mx-auto px-5 py-3 flex flex-col gap-2">
                 <NuxtLink v-if="isLoggedIn" to="/analisis" :class="getLinkClassName('/analisis')" @click="closeMenu">
                     Analisis
+                </NuxtLink>
+                <NuxtLink v-if="isLoggedIn" to="/positions" :class="getLinkClassName('/positions')" @click="closeMenu">
+                    Posisi
+                </NuxtLink>
+                <NuxtLink v-if="isLoggedIn" to="/trading" :class="getLinkClassName('/trading')" @click="closeMenu">
+                    Trading
                 </NuxtLink>
 
                 <template v-if="isLoggedIn">

@@ -83,9 +83,13 @@ export interface TPTarget {
 
 export interface TradingPlan {
     bias: string
-    entry_zone: number | null
+    entry_type: string
+    current_price: number | null
     entry_price: number | null
+    entry_zone: { low: number; high: number } | null
+    entry_note: string
     stop_loss: number | null
+    stop_loss_basis: string
     targets: TPTarget[]
     suggested_position_size_pct: number
     suggested_lots: number | null
@@ -101,6 +105,8 @@ export interface AnalisisResult {
     signal: SignalResult
     trading_plan: TradingPlan
     chart_image: string
+    ai_insight: string
+    error: string
 }
 
 export class AnalisisService {
@@ -147,6 +153,16 @@ export class AnalisisService {
             console.error('Analisis failed:', error)
             throw error
         }
+    }
+
+    async postAiInsight(ticker: string, dateEnd: string, indicators: Indicators, snapshot?: Snapshot): Promise<string> {
+        const baseURL = this.getBaseURL()
+        const url = `${baseURL}/api/analisis/ai-insight`
+        const response = await $fetch<{ success: boolean; data: { ai_insight: string } }>(url, {
+            method: 'POST',
+            body: { ticker, date_end: dateEnd, indicators, snapshot },
+        })
+        return response.data.ai_insight
     }
 }
 

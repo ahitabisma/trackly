@@ -14,6 +14,7 @@ import (
 	"trackly-backend/internal/company"
 	"trackly-backend/internal/investor"
 	"trackly-backend/internal/shareholding"
+	"trackly-backend/internal/trading"
 	"trackly-backend/internal/user"
 	"trackly-backend/pkg/appsscript"
 	"trackly-backend/pkg/config"
@@ -119,7 +120,11 @@ func Run() error {
 		time.Duration(cfg.AppsScript.PollIntervalMs)*time.Millisecond,
 		cfg.AppsScript.PollMaxRetries,
 	)
-	analisisHandler := analisis.NewAnalisisHandler(analisisService, log)
+	analisisHandler := analisis.NewAnalisisHandler(analisisService, log, cfg)
+
+	// trading service + handler
+	tradingService := trading.NewTradingService(db, analisisService, log, cfg.AppsScript.PythonScriptPath, cfg.NvidiaApiKey)
+	tradingHandler := trading.NewTradingHandler(tradingService, log)
 
 	// routes
 	SetupAppRoutes(mux, appHandler)
@@ -128,6 +133,7 @@ func Run() error {
 	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
 	shareholding.SetupShareholdingRoutes(mux, shareHoldingHandler, adminMiddleware)
 	analisis.SetupAnalisisRoutes(mux, analisisHandler)
+	trading.SetupTradingRoutes(mux, tradingHandler, authMiddleware)
 
 	// Apply CORS middleware
 	allowedOrigins := []string{

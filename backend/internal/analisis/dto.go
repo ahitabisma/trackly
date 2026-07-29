@@ -14,6 +14,7 @@ type AnalisisResponse struct {
 	Signal       *SignalResult      `json:"signal,omitempty"`
 	TradingPlan  *TradingPlan       `json:"trading_plan,omitempty"`
 	ChartImage   string             `json:"chart_image,omitempty"`
+	AIInsight    string             `json:"ai_insight,omitempty"`
 }
 
 type Snapshot struct {
@@ -85,17 +86,26 @@ type SignalBreakdown struct {
 	Score     int    `json:"score"`
 }
 
+type EntryZone struct {
+	Low  float64 `json:"low"`
+	High float64 `json:"high"`
+}
+
 type TradingPlan struct {
-	Bias                    string        `json:"bias"`
-	EntryZone               *float64      `json:"entry_zone,omitempty"`
-	EntryPrice              *float64      `json:"entry_price,omitempty"`
-	StopLoss                *float64      `json:"stop_loss,omitempty"`
-	Targets                 []TPTarget    `json:"targets,omitempty"`
-	SuggestedPositionSizePct float64      `json:"suggested_position_size_pct"`
-	SuggestedLots           *int          `json:"suggested_lots"`
-	TimeStopDays            int           `json:"time_stop_days"`
-	InvalidationNote        string        `json:"invalidation_note"`
-	Disclaimer              string        `json:"disclaimer"`
+	Bias                     string        `json:"bias"`
+	EntryType                string        `json:"entry_type,omitempty"`
+	CurrentPrice             *float64      `json:"current_price,omitempty"`
+	EntryPrice               *float64      `json:"entry_price,omitempty"`
+	EntryZone                *EntryZone    `json:"entry_zone,omitempty"`
+	EntryNote                string        `json:"entry_note,omitempty"`
+	StopLoss                 *float64      `json:"stop_loss,omitempty"`
+	StopLossBasis            string        `json:"stop_loss_basis,omitempty"`
+	Targets                  []TPTarget    `json:"targets,omitempty"`
+	SuggestedPositionSizePct float64       `json:"suggested_position_size_pct"`
+	SuggestedLots            *int          `json:"suggested_lots"`
+	TimeStopDays             int           `json:"time_stop_days"`
+	InvalidationNote         string        `json:"invalidation_note"`
+	Disclaimer               string        `json:"disclaimer"`
 }
 
 type TPTarget struct {
@@ -108,4 +118,11 @@ type TickerSearchResult struct {
 	Kode            string `json:"kode"`
 	NamaPerusahaan  string `json:"nama_perusahaan"`
 	PapanPencatatan string `json:"papan_pencatatan"`
+}
+
+type AiInsightRequest struct {
+	Ticker     string      `json:"ticker" validate:"required"`
+	DateEnd    string      `json:"date_end" validate:"required"`
+	Indicators *Indicators `json:"indicators" validate:"required"`
+	Snapshot   *Snapshot   `json:"snapshot"`
 }

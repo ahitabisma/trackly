@@ -50,6 +50,8 @@ type Config struct {
 		PollMaxRetries    int `mapstructure:"poll_max_retries"`
 		PythonScriptPath  string `mapstructure:"python_script_path"`
 	}
+
+	NvidiaApiKey string `mapstructure:"nvidia_api_key"`
 }
 
 func Load() (*Config, error) {

@@ -43,3 +43,5 @@ appsscript:
   poll_interval_ms: 500 # polling interval for chart refresh
   poll_max_retries: 20 # max poll attempts (500ms * 20 = 10s total)
   python_script_path: ./scripts/generate_chart.py
+
+nvidia_api_key: "" # NVIDIA NIM API key for AI insight

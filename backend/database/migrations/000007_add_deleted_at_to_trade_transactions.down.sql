@@ -1,0 +1,1 @@
+ALTER TABLE trade_transactions DROP COLUMN deleted_at;

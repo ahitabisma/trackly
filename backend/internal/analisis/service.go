@@ -591,14 +591,23 @@ func mapTradingPlan(m map[string]interface{}) *TradingPlan {
 	}
 	plan := &TradingPlan{
 		Bias:                     strVal(m["bias"]),
-		EntryZone:                floatPtrVal(m["entry_zone"]),
+		EntryType:                strVal(m["entry_type"]),
+		CurrentPrice:             floatPtrVal(m["current_price"]),
 		EntryPrice:               floatPtrVal(m["entry_price"]),
+		EntryNote:                strVal(m["entry_note"]),
 		StopLoss:                 floatPtrVal(m["stop_loss"]),
+		StopLossBasis:            strVal(m["stop_loss_basis"]),
 		SuggestedPositionSizePct: floatVal(m["suggested_position_size_pct"]),
 		SuggestedLots:            intPtrVal(m["suggested_lots"]),
 		TimeStopDays:             intVal(m["time_stop_days"]),
 		InvalidationNote:         strVal(m["invalidation_note"]),
 		Disclaimer:               strVal(m["disclaimer"]),
+	}
+	if ez, ok := m["entry_zone"].(map[string]interface{}); ok {
+		plan.EntryZone = &EntryZone{
+			Low:  floatVal(ez["low"]),
+			High: floatVal(ez["high"]),
+		}
 	}
 	if tgts, ok := m["targets"].([]interface{}); ok {
 		for _, item := range tgts {

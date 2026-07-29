@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"trackly-backend/pkg/aiinsight"
+	"trackly-backend/pkg/config"
 	"trackly-backend/pkg/httpx"
 	customLogger "trackly-backend/pkg/logger"
 	"trackly-backend/pkg/validatorx"
@@ -14,12 +16,14 @@ import (
 type AnalisisHandler struct {
 	svc *AnalisisService
 	log *logrus.Logger
+	cfg *config.Config
 }
 
-func NewAnalisisHandler(svc *AnalisisService, log *logrus.Logger) *AnalisisHandler {
+func NewAnalisisHandler(svc *AnalisisService, log *logrus.Logger, cfg *config.Config) *AnalisisHandler {
 	return &AnalisisHandler{
 		svc: svc,
 		log: log,
+		cfg: cfg,
 	}
 }
 
@@ -113,5 +117,40 @@ func (h *AnalisisHandler) PostAnalisis(w http.ResponseWriter, r *http.Request) {
 
 	resp := httpx.Success(result, "Analisis completed")
 	customLogger.LogHTTPSuccess(h.log, resp, map[string]interface{}{"ticker": req.Ticker})
+	httpx.WriteJSON(w, r, http.StatusOK, resp)
+}
+
+func (h *AnalisisHandler) PostAiInsight(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var req AiInsightRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		resp := httpx.Error(httpx.ErrValidation, "Invalid request body", err.Error())
+		httpx.WriteJSON(w, r, http.StatusBadRequest, resp)
+		return
+	}
+
+	if req.Indicators == nil {
+		resp := httpx.Error(httpx.ErrValidation, "Data indicators wajib ada", "")
+		httpx.WriteJSON(w, r, http.StatusBadRequest, resp)
+		return
+	}
+
+	insightKey := aiinsight.CacheKey(req.Ticker, req.DateEnd)
+	insightData := map[string]interface{}{
+		"_cache_key": insightKey,
+		"ticker":     req.Ticker,
+		"indicators": req.Indicators,
+		"snapshot":   req.Snapshot,
+	}
+	insight, err := aiinsight.GenerateInsight(r.Context(), h.cfg.NvidiaApiKey, insightData)
+	if err != nil {
+		h.log.WithError(err).Warn("ai insight failed")
+		resp := httpx.Error(httpx.ErrInternal, "Gagal generate AI insight", err.Error())
+		httpx.WriteJSON(w, r, http.StatusInternalServerError, resp)
+		return
+	}
+
+	resp := httpx.Success(map[string]string{"ai_insight": insight}, "AI insight generated")
 	httpx.WriteJSON(w, r, http.StatusOK, resp)
 }
