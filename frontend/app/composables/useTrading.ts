@@ -45,10 +45,14 @@ export function useTrading() {
 
   const requestAiInsight = async (ticker: string) : Promise<void> => {
     aiLoading.value = true; aiError.value = null; aiInsight.value = null
-    const end = new Date().toISOString().split('T')[0]
-    const start = new Date(Date.now() - 365 * 86400000).toISOString().split('T')[0]
+    const pa = positionAnalysis.value
+    if (!pa?.indicators) {
+      aiError.value = 'Data analisis belum tersedia'
+      aiLoading.value = false
+      return
+    }
     try {
-      aiInsight.value = await tradingService.postAiInsight(ticker, start, end)
+      aiInsight.value = await tradingService.postAiInsight(ticker, new Date().toISOString().split('T')[0], pa.indicators, null)
     } catch (e: any) { aiError.value = e?.message || 'AI insight failed' }
     finally { aiLoading.value = false }
   }

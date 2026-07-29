@@ -62,7 +62,10 @@ const {
 } = useAnalisis();
 
 const chartSvg = ref<SVGSVGElement | null>(null);
-const signalExpanded = ref(false);
+const formatMd = (s: string) =>
+  s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+   .replace(/\n\n/g, '</p><p>')
+   .replace(/\n/g, '<br>');
 let d3Cleanup: (() => void) | null = null;
 
 onMounted(() => fetchAll());
@@ -528,7 +531,7 @@ onUnmounted(() => {
 
         <!-- Trading Plan -->
         <div
-          v-if="isAdmin && result.trading_plan"
+          v-if="result.trading_plan"
           class="fu3 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -685,7 +688,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Invalidation Note -->
-          <div
+          <div v-if="isAdmin"
             class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
           >
             <div
@@ -738,11 +741,11 @@ onUnmounted(() => {
             class="mt-4 p-5 bg-card border-2 border-ink rounded-2xl"
             style="box-shadow: 4px 4px 0 #1a1612"
           >
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 justify-center">
               <div
                 class="w-5 h-5 border-2 border-ink border-t-transparent rounded-full animate-spin"
               ></div>
-              <span class="font-mono text-sm text-muted"
+              <span class="font-mono text-sm text-muted text-center"
                 >AI sedang menganalisis...</span
               >
             </div>
@@ -764,9 +767,7 @@ onUnmounted(() => {
                 Tutup
               </button>
             </div>
-            <p class="font-sans text-sm text-ink leading-relaxed">
-              {{ aiInsight }}
-            </p>
+            <div v-html="'<p>' + formatMd(aiInsight) + '</p>'" class="font-sans text-sm text-ink leading-relaxed [&_strong]:font-bold [&_p]:mt-2 [&_p:first-child]:mt-0"></div>
           </div>
 
           <div
@@ -784,7 +785,7 @@ onUnmounted(() => {
 
         <!-- Snapshot Card -->
         <div
-          v-if="result.snapshot"
+          v-if="isAdmin && result.snapshot"
           class="fu2 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -940,7 +941,7 @@ onUnmounted(() => {
 
         <!-- D3 Candlestick Chart -->
         <div
-          v-if="result.ohlcv?.length"
+          v-if="isAdmin && result.ohlcv?.length"
           class="fu2 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -959,7 +960,7 @@ onUnmounted(() => {
 
         <!-- Python Multi-panel Chart -->
         <div
-          v-if="result.chart_image"
+          v-if="isAdmin && result.chart_image"
           class="fu2 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >

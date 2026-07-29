@@ -119,10 +119,10 @@ export class TradingService {
     await $fetch(url, { method: 'DELETE', headers: this.headers() })
   }
 
-  async postAiInsight(ticker: string, dateStart: string, dateEnd: string): Promise<string> {
+  async postAiInsight(ticker: string, dateEnd: string, indicators: any, snapshot?: any): Promise<string> {
     const url = `${this.getBaseURL()}/api/analisis/ai-insight`
     const res = await $fetch<{ success: boolean; data: { ai_insight: string } }>(url, {
-      method: 'POST', body: { ticker, date_start: dateStart, date_end: dateEnd }, headers: this.headers(),
+      method: 'POST', body: { ticker, date_end: dateEnd, indicators, snapshot }, headers: this.headers(),
     })
     return res.data.ai_insight
   }

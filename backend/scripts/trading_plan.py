@@ -270,33 +270,32 @@ def compute_position_review(ind, signal, buy_price, lot, buy_date):
     unrealized_pnl_pct = round((current_price - buy_price) / buy_price * 100, 2)
     holding_days = _holding_days(buy_date)
 
-    overall = signal.get('overall', 'neutral')
-    support = ind.get('support')
-    atr = ind.get('atr')
+    # Insight + trading plan LENGKAP dari harga sekarang -- pakai compute()
+    # yang sama kayak buat sinyal fresh (entry/entry_zone/SL/TP/invalidation),
+    # jadi orang yang udah pegang posisi juga dapet insight lengkap, bukan
+    # cuma rekomendasi hold/sell + 1 baris alasan. Ini juga sekalian
+    # ngilangin duplikasi logika stop-loss yang sebelumnya ada 2 tempat
+    # terpisah (bisa gampang divergen kalau salah satunya diubah).
+    plan = compute(ind, signal)
 
-    if overall == 'bearish':
+    if plan['bias'] == 'avoid':
         recommendation = 'sell'
         suggested_exit_price = _f(current_price)
         suggested_stop = None
-        reason = f"Sinyal berubah bearish (score {signal.get('score')}). Pertimbangkan sell untuk membatasi risiko lebih lanjut."
-    else:
+        reason = (
+            f"Sinyal berubah bearish (score {signal.get('score')}). Kamu sudah hold saham ini -- "
+            f"pertimbangkan review/keluar posisi sesuai rencana manajemen risiko kamu sendiri."
+        )
+    elif plan['bias'] == 'buy':
         recommendation = 'hold'
         suggested_exit_price = None
-        max_distance = current_price * MAX_STOP_LOSS_PCT  # cap yang sama kayak compute() -- konsisten, nggak ada lagi stop 25%+
-
-        if support is not None and support < current_price:
-            buffer = atr * 0.5 if atr else 0
-            distance = current_price - (support - buffer)
-        elif atr:
-            distance = atr * ATR_MULT_SL
-        else:
-            distance = max_distance
-
-        if distance > max_distance:
-            distance = max_distance
-
-        suggested_stop = _f(current_price - distance)
-        reason = f"Sinyal masih {overall}. Hold selama harga di atas level invalidasi {suggested_stop}."
+        suggested_stop = plan['stop_loss']
+        reason = f"Sinyal masih {signal.get('overall', 'neutral')}. Hold selama harga di atas level invalidasi {suggested_stop}."
+    else:  # bias 'hold' -- data nggak cukup buat nentuin plan
+        recommendation = 'hold'
+        suggested_exit_price = None
+        suggested_stop = None
+        reason = plan['invalidation_note'] or 'Data tidak cukup untuk rekomendasi.'
 
     return {
         'ticker': signal.get('ticker'),
@@ -310,6 +309,7 @@ def compute_position_review(ind, signal, buy_price, lot, buy_date):
         'suggested_exit_price': suggested_exit_price,
         'suggested_stop': suggested_stop,
         'reason': reason,
+        'trading_plan': plan,  # insight + trading plan lengkap: bias, entry_price, entry_zone, entry_note, stop_loss, targets (TP1-3 + R:R), invalidation_note, dst -- format sama kayak hasil Analisis biasa
         'disclaimer': _disclaimer(),
     }
 
