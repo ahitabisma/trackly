@@ -45,3 +45,4 @@ appsscript:
   python_script_path: ./scripts/generate_chart.py
 
 nvidia_api_key: "" # NVIDIA NIM API key for AI insight
+gemini_api_key: "" # Gemini API key for AI insight

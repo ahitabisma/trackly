@@ -29,9 +29,10 @@ type TradingService struct {
 	pythonBin   string
 	pythonPath  string
 	nvidiaKey   string
+	geminiKey   string
 }
 
-func NewTradingService(db *gorm.DB, analisisSvc *analisis.AnalisisService, log *logrus.Logger, pythonPath string, nvidiaKey string) *TradingService {
+func NewTradingService(db *gorm.DB, analisisSvc *analisis.AnalisisService, log *logrus.Logger, pythonPath string, nvidiaKey, geminiKey string) *TradingService {
 	return &TradingService{
 		db:          db,
 		analisisSvc: analisisSvc,
@@ -39,6 +40,7 @@ func NewTradingService(db *gorm.DB, analisisSvc *analisis.AnalisisService, log *
 		pythonBin:   "python",
 		pythonPath:  pythonPath,
 		nvidiaKey:   nvidiaKey,
+		geminiKey:   geminiKey,
 	}
 }
 
@@ -252,7 +254,7 @@ func (s *TradingService) GetPositionAnalysis(ctx context.Context, ticker string)
 	if analisisResp.Signal != nil {
 		insightData["signal"] = analisisResp.Signal
 	}
-	insight, err := aiinsight.GenerateInsight(ctx, s.nvidiaKey, insightData)
+	insight, err := aiinsight.GenerateInsight(ctx, s.nvidiaKey, s.geminiKey, insightData)
 	if err != nil {
 		s.log.WithError(err).Warn("ai insight failed")
 	} else {

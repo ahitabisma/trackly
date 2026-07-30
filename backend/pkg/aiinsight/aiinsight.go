@@ -5,13 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const nvidiaBaseURL = "https://integrate.api.nvidia.com/v1/chat/completions"
 const nvidiaModel = "deepseek-ai/deepseek-v4-flash"
+
+const geminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+const geminiModel = "gemini-3.6-flash"
 
 type cacheItem struct {
 	content   string
@@ -24,6 +30,7 @@ type Cache struct {
 }
 
 var global = &Cache{items: make(map[string]cacheItem)}
+var log = logrus.StandardLogger()
 
 func (c *Cache) Get(key string) (string, bool) {
 	c.mu.RLock()
@@ -122,60 +129,94 @@ ATURAN UMUM:
 - Total maksimal sekitar 8-10 kalimat untuk dua paragraf itu. Hindari jargon berlebihan tanpa
   penjelasan singkat.`
 
-func GenerateInsight(ctx context.Context, apiKey string, analysisData map[string]interface{}) (string, error) {
-	cacheKey := ""
-	if ticker, ok := analysisData["_cache_key"].(string); ok {
-		cacheKey = ticker
-		delete(analysisData, "_cache_key")
-	}
-	if cacheKey != "" {
-		if cached, ok := global.Get(cacheKey); ok {
-			return cached, nil
-		}
-	}
-
-	dataJSON, _ := json.Marshal(analysisData)
-
-	if apiKey == "" {
-		return "", fmt.Errorf("NVIDIA_API_KEY not set")
-	}
-
-	// Data mentah (BENTUK B) butuh reasoning lebih dalam (nurunin bias dari
-	// banyak indikator + susun trading plan sendiri) dibanding BENTUK A yang
-	// cuma narasi dari data yang sudah jadi -- nyalain "thinking" mode biar
-	// modelnya benar2 mikir sebelum jawab, bukan cuma pattern-match cepat.
-	hasPrecomputedSignal := false
-	if _, ok := analysisData["signal"]; ok {
-		hasPrecomputedSignal = true
-	}
-	if _, ok := analysisData["trading_plan"]; ok {
-		hasPrecomputedSignal = true
-	}
-	if _, ok := analysisData["recommendation"]; ok {
-		hasPrecomputedSignal = true
-	}
-
-	reqBody := map[string]interface{}{
-		"model": nvidiaModel,
-		"messages": []map[string]string{
-			{
-				"role":    "system",
-				"content": aiInsightSystemPrompt,
-			},
-			{"role": "user", "content": string(dataJSON)},
-		},
+func callNVIDIA(ctx context.Context, apiKey string, messages []map[string]string, hasPrecomputedSignal bool) (string, error) {
+	body := map[string]interface{}{
+		"model":       nvidiaModel,
+		"messages":    messages,
 		"temperature": 0.3,
-		"max_tokens":  700, // dinaikkan dari 550 -- BENTUK B butuh ruang lebih buat trading plan lengkap
+		"max_tokens":  4000,
 	}
 
 	if !hasPrecomputedSignal {
-		reqBody["extra_body"] = map[string]interface{}{
-			"chat_template_kwargs": map[string]interface{}{"thinking": true},
+		body["chat_template_kwargs"] = map[string]interface{}{
+			"thinking":          true,
+			"reasoning_effort": "low",
 		}
 	}
 
-	bodyBytes, _ := json.Marshal(reqBody)
+	bodyBytes, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(ctx, "POST", nvidiaBaseURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	var (
+		resp    *http.Response
+		lastErr error
+	)
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			log.WithField("attempt", attempt+1).Info("Retrying NVIDIA AI insight")
+			time.Sleep(time.Duration(1<<attempt) * time.Second)
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("request failed: %w", err)
+			continue
+		}
+		if resp.StatusCode == http.StatusOK {
+			break
+		}
+		sc := resp.StatusCode
+		if sc >= 500 || sc == 429 {
+			lastErr = fmt.Errorf("NVIDIA NIM error: HTTP %d (retryable)", sc)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return "", fmt.Errorf("NVIDIA NIM error: HTTP %d - %s", sc, string(body))
+	}
+	if resp == nil || resp.StatusCode != http.StatusOK {
+		if resp != nil {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if len(body) > 0 {
+				lastErr = fmt.Errorf("%w - %s", lastErr, string(body))
+			}
+		}
+		return "", lastErr
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	content, err := decodeResponseBytes(respBody)
+	if err != nil {
+		return "", err
+	}
+	if content == "" {
+		log.WithField("raw_response", string(respBody)).Warn("NVIDIA returned empty content")
+		return "", fmt.Errorf("empty response")
+	}
+	return content, nil
+}
+
+func callGemini(ctx context.Context, apiKey string, messages []map[string]string) (string, error) {
+	body := map[string]interface{}{
+		"model":       geminiModel,
+		"messages":    messages,
+		"temperature": 0.3,
+		"max_tokens":  2000,
+	}
+
+	bodyBytes, _ := json.Marshal(body)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", geminiBaseURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return "", err
 	}
@@ -188,27 +229,108 @@ func GenerateInsight(ctx context.Context, apiKey string, analysisData map[string
 	}
 	defer resp.Body.Close()
 
+	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("NVIDIA NIM error: HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("Gemini error: HTTP %d - %s", resp.StatusCode, string(respBody))
 	}
 
+	content, err := decodeResponseBytes(respBody)
+	if err != nil {
+		return "", err
+	}
+	if content == "" {
+		log.WithField("raw_response", string(respBody)).Warn("Gemini returned empty content")
+		return "", fmt.Errorf("empty response")
+	}
+	return content, nil
+}
+
+func decodeResponseBytes(b []byte) (string, error) {
 	var result struct {
 		Choices []struct {
+			FinishReason string `json:"finish_reason"`
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(b, &result); err != nil {
 		return "", err
 	}
+	if len(result.Choices) > 0 && result.Choices[0].FinishReason == "length" {
+		log.WithFields(logrus.Fields{
+			"finish_reason":   "length",
+			"content_preview": truncateStr(result.Choices[0].Message.Content, 200),
+		}).Warn("AI response truncated by token limit")
+	}
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("NVIDIA NIM: empty response")
+		return "", fmt.Errorf("empty response")
+	}
+	return result.Choices[0].Message.Content, nil
+}
+
+func GenerateInsight(ctx context.Context, nvidiaKey, geminiKey string, analysisData map[string]interface{}) (string, error) {
+	cacheKey := ""
+	if ticker, ok := analysisData["_cache_key"].(string); ok {
+		cacheKey = ticker
+		delete(analysisData, "_cache_key")
+	}
+	if cacheKey != "" {
+		if cached, ok := global.Get(cacheKey); ok {
+			return cached, nil
+		}
 	}
 
-	content := result.Choices[0].Message.Content
-	if cacheKey != "" {
-		global.Set(cacheKey, content)
+	hasPrecomputedSignal := false
+	if _, ok := analysisData["signal"]; ok {
+		hasPrecomputedSignal = true
 	}
-	return content, nil
+	if _, ok := analysisData["trading_plan"]; ok {
+		hasPrecomputedSignal = true
+	}
+	if _, ok := analysisData["recommendation"]; ok {
+		hasPrecomputedSignal = true
+	}
+
+	dataJSON := jsonMarshal(analysisData)
+	messages := []map[string]string{
+		{"role": "system", "content": aiInsightSystemPrompt},
+		{"role": "user", "content": dataJSON},
+	}
+
+	if nvidiaKey != "" {
+		content, err := callNVIDIA(ctx, nvidiaKey, messages, hasPrecomputedSignal)
+		if err == nil {
+			if cacheKey != "" {
+				global.Set(cacheKey, content)
+			}
+			return content, nil
+		}
+		log.WithError(err).Warn("NVIDIA AI insight failed, trying Gemini fallback")
+	}
+
+	if geminiKey != "" {
+		content, err := callGemini(ctx, geminiKey, messages)
+		if err == nil {
+			if cacheKey != "" {
+				global.Set(cacheKey, content)
+			}
+			return content, nil
+		}
+		log.WithError(err).Warn("Gemini AI insight failed")
+	}
+
+	return "", fmt.Errorf("layanan ai sedang tidak tersedia")
+}
+
+func jsonMarshal(v interface{}) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

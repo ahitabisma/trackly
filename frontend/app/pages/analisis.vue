@@ -778,7 +778,7 @@ onUnmounted(() => {
               AI Insight tidak tersedia
             </p>
             <p class="font-mono text-xs text-yellow-700 mt-1">
-              Layanan AI sedang sibuk atau belum dikonfigurasi. Coba lagi nanti.
+              Layanan AI sedang sibuk. Coba lagi nanti.
             </p>
           </div>
         </div>

@@ -143,7 +143,7 @@ func (h *AnalisisHandler) PostAiInsight(w http.ResponseWriter, r *http.Request) 
 		"indicators": req.Indicators,
 		"snapshot":   req.Snapshot,
 	}
-	insight, err := aiinsight.GenerateInsight(r.Context(), h.cfg.NvidiaApiKey, insightData)
+	insight, err := aiinsight.GenerateInsight(r.Context(), h.cfg.NvidiaApiKey, h.cfg.GeminiApiKey, insightData)
 	if err != nil {
 		h.log.WithError(err).Warn("ai insight failed")
 		resp := httpx.Error(httpx.ErrInternal, "Gagal generate AI insight", err.Error())

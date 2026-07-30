@@ -123,7 +123,7 @@ func Run() error {
 	analisisHandler := analisis.NewAnalisisHandler(analisisService, log, cfg)
 
 	// trading service + handler
-	tradingService := trading.NewTradingService(db, analisisService, log, cfg.AppsScript.PythonScriptPath, cfg.NvidiaApiKey)
+	tradingService := trading.NewTradingService(db, analisisService, log, cfg.AppsScript.PythonScriptPath, cfg.NvidiaApiKey, cfg.GeminiApiKey)
 	tradingHandler := trading.NewTradingHandler(tradingService, log)
 
 	// routes

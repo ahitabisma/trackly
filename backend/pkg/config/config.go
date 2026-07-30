@@ -52,6 +52,7 @@ type Config struct {
 	}
 
 	NvidiaApiKey string `mapstructure:"nvidia_api_key"`
+	GeminiApiKey string `mapstructure:"gemini_api_key"`
 }
 
 func Load() (*Config, error) {
