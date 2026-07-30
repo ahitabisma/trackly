@@ -1,4 +1,4 @@
-# PRD: Fitur Analisis Teknikal & Trading Plan (Swing 1-4 Minggu)
+# PRD: Trackly — Analisis Teknikal, Trading Plan & Position Management
 
 ## 1. Latar Belakang
 
@@ -9,7 +9,9 @@ Aplikasi memiliki frontend (Nuxt/Vue) + backend (Go) yang terhubung ke Google Sh
 - `google_finance` — snapshot harga & fundamental per ticker
 - `chart` — data historis OHLCV mengikuti ticker & rentang tanggal aktif di `config`
 
-Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang tanggal, lalu melihat grafik historis lengkap dengan indikator teknikal, sinyal (bullish/bearish/netral), serta **trading plan** (entry, stop loss, take profit) untuk **swing trading 1–4 minggu** di saham Indonesia (BEI).
+Modul **Analisis** untuk meneliti saham secara teknikal: user mencari ticker, memilih rentang tanggal, melihat grafik historis lengkap dengan indikator teknikal, sinyal (bullish/bearish/netral), dan **trading plan** (entry, stop loss, take profit) untuk **swing trading 1–4 minggu**.
+
+Modul **Positions** untuk memantau posisi terbuka dari data transaksi riil (buy/sell) di database lokal: menampilkan P&L, posisi direview dengan analisis teknikal + trading plan yang **position-aware** (entry average, stop loss disesuaikan, target take profit berdasarkan avg price).
 
 > Output analisis & trading plan bersifat sinyal otomatis berbasis data historis, **bukan rekomendasi investasi**. Aplikasi wajib menampilkan disclaimer di UI.
 
@@ -20,59 +22,114 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 - User bisa melihat chart multi-panel: candlestick + overlay indikator + panel volume/RSI/MACD/Stochastic
 - Sistem menghasilkan **skor/sinyal teknikal** dari confluence beberapa indikator dengan bobot berbeda
 - Sistem menghasilkan **trading plan** otomatis: entry zone, stop loss, multi-level take profit, risk/reward, position sizing, time-stop
-- Proses end-to-end target < 10 detik
+- User bisa mencatat transaksi jual/beli dan melihat posisi terbuka dengan P&L real-time
+- Tiap posisi bisa direview dengan analisis teknikal + trading plan yang disesuaikan dengan harga rata-rata posisi
+- User bisa mendapatkan **AI insight** terpisah untuk analisis fundamental + sentimen naratif
+- Proses analisis end-to-end target < 10 detik
+- Data analisis di-cache sementara (sessionStorage 5 menit) untuk menghindari request ulang
 
 ## 3. Non-Goals
 
-- Tidak membuat sistem multi-user/session terisolasi di versi awal
 - Tidak membangun data warehouse/cache historis sendiri di luar Google Sheets
-- Tidak mencakup fitur watchlist/portfolio/eksekusi order otomatis
+- Tidak mencakup fitur watchlist/eksekusi order otomatis
 - Bukan pengganti nasihat keuangan profesional
 - Tidak mengganti sumber data (tetap Google Sheets + GOOGLEFINANCE)
-- Tidak membangun backtesting engine di rilis ini
+- Tidak membangun backtesting engine
+- Tidak ada sistem multi-user terisolasi — tooling internal single-user
 
 ## 4. User Flow
 
+### 4.1 Analisis Page (`/analisis`)
+
 1. User membuka menu **Analisis**
-2. `onMounted` → frontend fetch semua ticker dari `GET /api/tickers`, simpan di memori
+2. `onMounted` → fetch semua ticker dari `GET /api/tickers`, simpan di memori
 3. User mengetik nama/kode ticker → filter lokal via `computed` (instant)
 4. User memilih ticker → memilih rentang tanggal (default: 1 tahun terakhir)
 5. User klik "Analisis" → loading state
-6. Backend:
-   - Update `config.selected_ticker`, `date_start`, `date_end` via Apps Script
-   - Poll sheet `chart` setiap 500ms (max 20× = 10s) sampai data tersedia
-   - Ambil data chart terbaru
-   - Jalankan Python subprocess: hitung indikator, sinyal, trading plan, render PNG
-7. Frontend menampilkan: snapshot fundamental → chart multi-panel → ringkasan sinyal (badge + skor + breakdown) → trading plan (entry/SL/TP/RR) → disclaimer → tabel OHLCV
+6. Backend orkestrasi: update config sheet → poll chart data → jalankan Python (indikator, sinyal, trading plan, render PNG)
+7. Hasil ditampilkan dalam **tab system**: Review (sinyal + trading plan), Indikator (grid 14 indikator), Snapshot (fundamental), AI Analisis (insight dari LLM), Chart (D3 candlestick + PNG multi-panel)
+8. Disclaimer permanen di bagian bawah
+
+### 4.2 Positions Page (`/positions`)
+
+1. User membuka menu **Positions**
+2. `onMounted` → `GET /api/positions` — agregasi transaksi buy/sell per ticker dari database
+3. Daftar posisi terbuka tampil sebagai cards (ticker, lot, avg price)
+4. User klik card → `loadAnalysis(ticker)` → `GET /api/positions/{ticker}/analysis`
+5. Hasil analisis ditampilkan di bawah cards dalam **tab system**: Review (P&L + trading plan position-aware + sinyal breakdown), Indikator (14 indikator), Snapshot (fundamental), AI Analisis (insight LLM dengan konteks posisi)
+6. Analisis di-cache di sessionStorage (5 menit). User bisa klik "Re-Analyze" untuk refresh.
+7. AI insight dipanggil terpisah (client-side) hanya saat tab AI diklik
 
 ## 5. Functional Requirements
 
 ### 5.1 Backend (Go)
 
+#### Endpoints
+
 | Endpoint | Method | Deskripsi |
 |----------|--------|-----------|
 | `/api/tickers` | GET | Seluruh daftar ticker dari sheet `master` (cache TTL 5 menit) |
+| `/api/ticker/{kode}` | GET | Snapshot fundamental satu ticker dari sheet `google_finance` |
 | `/api/analisis` | POST | Body `{ticker, date_start, date_end}` → orkestrasi update config, poll chart, jalankan Python, return hasil lengkap |
+| `/api/analisis/ai-insight` | POST | Body `{ticker, date_end, indicators, snapshot, position?, position_review?, signal?}` → LLM (NVIDIA fallback Gemini) → return markdown insight |
+| `/api/positions` | GET | Agregasi seluruh posisi terbuka dari tabel `trade_transactions` (buy/sell per ticker) |
+| `/api/positions/{ticker}/analysis` | GET | Analisis teknikal + position review untuk satu ticker yang dimiliki |
 
-**Response `/api/analisis`:**
+#### Response `/api/analisis`
 
 ```json
 {
   "snapshot": { "kode": "ANTM", "company_name": "...", "price": 3000, "high52": 3250, "low52": 2770, "volume": 61092600, "marketcap": 0, "pe": null, "eps": 0, "currency": "IDR" },
+  "ohlcv": [{ "date": "2024-01-01", "open": 2900, "high": 3050, "low": 2880, "close": 3000, "volume": 50000000 }],
   "chart_image": "base64 PNG",
-  "indicators": { ... },
+  "indicators": { "sma20": 2950, "rsi": 58.5, ... },
   "signal": { "overall": "bullish", "score": 0.45, "confidence": "medium", "trend_filter_passed": true, "breakdown": [...] },
-  "trading_plan": { "bias": "buy", "entry_price": 9150, "stop_loss": 8830, "targets": [...], "suggested_position_size_pct": 4.59, "suggested_lots": 12, "time_stop_days": 20, "invalidation_note": "...", "disclaimer": "..." },
+  "trading_plan": { "bias": "buy", "entry_price": 9150, "stop_loss": 8830, "targets": [...], ... },
+  "ai_insight": "markdown string",
   "error": ""
 }
 ```
 
-**Konfigurasi service:**
+#### Response `/api/positions/{ticker}/analysis`
+
+```json
+{
+  "ticker": "ANTM",
+  "position": { "ticker": "ANTM", "total_lot": 5, "average_buy_price": 2800, "status": "open" },
+  "indicators": { ... },
+  "signal": { "overall": "bullish", ... },
+  "snapshot": { ... },
+  "position_review": {
+    "buy_price": 2800, "current_price": 3000, "lot": 5,
+    "unrealized_pnl": 1000000, "unrealized_pnl_pct": 7.14,
+    "holding_days": 45, "recommendation": "hold",
+    "suggested_exit_price": 3200, "suggested_stop": 2650,
+    "reason": "...",
+    "trading_plan": {
+      "bias": "buy", "avg_price": 2800, "current_vs_avg_pct": 7.14,
+      "entry_zone": { "low": 2750, "high": 2850 },
+      "entry_note": "Posisi sudah masuk. Avg 2800, current 3000 (+7.14%)",
+      "stop_loss": 2650, "stop_loss_basis": "structure_swing_low",
+      "targets": [
+        { "level": "BE", "price": 2800, "rr_ratio": 0 },
+        { "level": "TP1", "price": 3100, "rr_ratio": 1.0 },
+        { "level": "TP2", "price": 3400, "rr_ratio": 2.0 },
+        { "level": "TP3", "price": 3700, "rr_ratio": 3.0 }
+      ],
+      "disclaimer": "..."
+    },
+    "disclaimer": "..."
+  },
+  "ai_insight": "markdown string"
+}
+```
+
+#### Konfigurasi Service
 
 | Field | Default | Keterangan |
 |-------|---------|------------|
-| `pythonBin` | auto-detect (python3/py/python) | Binary Python yang dipakai |
-| `pythonScriptPath` | `./scripts/generate_chart.py` | Path absolut ke script Python |
+| `pythonBin` | auto-detect (python3/py/python) | Binary Python |
+| `pythonScriptPath` | `./scripts/generate_chart.py` | Path absolut script Python |
 | `pollIntervalMs` | 500 | Interval polling sheet chart (ms) |
 | `pollMaxRetries` | 20 | Maksimal retry polling |
 | `subprocessTimeout` | 120s | Timeout eksekusi Python |
@@ -81,9 +138,11 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 
 **Input:** OHLCV dari sheet `chart` via temp JSON file. Kolom wajib: `date, open, high, low, close, volume`. Minimal 30 bar data, urutan ascending.
 
-**CLI:** `python generate_chart.py --input <temp.json> --ticker <KODE> --out <chart.png> [--equity <modal>]`
+**CLI (generate_chart.py):** `python generate_chart.py --input <temp.json> --ticker <KODE> --out <chart.png> [--equity <modal>]`
 
-**Stdout:** JSON `{ indicators: {...}, signal: {...}, trading_plan: {...} }`
+**CLI (run_position_review.py):** `python run_position_review.py --input <temp.json> --ticker <KODE> --buy-price <harga> --lot <lot> --buy-date <YYYY-MM-DD>`
+
+**Stdout:** JSON `{ indicators: {...}, signal: {...}, trading_plan: {...} }` untuk generate_chart. `{ position_review: {...} }` untuk run_position_review.
 
 #### Indikator
 
@@ -93,51 +152,79 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 | Momentum | RSI(14), MACD (12,26,9) + signal + histogram, Stochastic %K/%D |
 | Volatilitas | Bollinger Bands (20,2), ATR(14) |
 | Volume | OBV, Volume MA20, volume spike flag |
-| Price Levels | Support/Resistance (swing high/low), Fibonacci retracement (23.6/38.2/50/61.8/78.6) |
+| Price Levels | Support/Resistance (swing high/low), Fibonacci retracement (23.6/38.2/50/61.8) |
 
 #### Sinyal (Confluence-based)
 
 - Tiap indikator memberi vote: bullish (+1) / bearish (-1) / netral (0)
-- **Bobot berbeda**: indikator tren (SMA cross, ADX, MACD) lebih besar dari oscillator jangka pendek (RSI, Stochastic)
-- Filter tren jangka panjang: `trend_filter_passed = bool(close > SMA200)` jika SMA200 tersedia
-- Skor total dinormalisasi → label `bullish`/`bearish`/`netral`
-- `confidence`: `high`/`medium`/`low` berdasarkan jumlah indikator berkontribusi + konsistensi arah
+- **Bobot berbeda**: indikator tren > oscillator jangka pendek
+- Filter tren jangka panjang: `trend_filter_passed = bool(close > SMA200)`
+- Skor total dinormalisasi → `bullish`/`bearish`/`netral`
+- `confidence`: `high`/`medium`/`low` berdasarkan kontribusi + konsistensi
 
 #### Trading Plan
 
+**Mode Fresh Entry (generate_chart.py):**
 - **Bias**: `buy`/`sell`/`hold` dari signal overall
-- **Entry price**: area support terdekat (buy) / resistance terdekat (sell) atau pullback ke SMA20/EMA20
-- **Stop loss**: di bawah support kunci / swing low, buffer ATR × 2.0–2.5 (configurable)
-- **Take profit**: multi-level (1.5R, 2.5R, 3.5R) berdasarkan resistance berikutnya
-- **Time stop**: default 20 hari bursa (≈ 4 minggu)
-- **Position sizing**: `suggested_position_size_pct` (1-2% risk), `suggested_lots` (nullable, butuh `--equity`)
-- **Invalidation note**: kondisi batal
-- **Disclaimer**: teks permanen
+- **Entry price**: area support terdekat / pullback ke SMA20/EMA20
+- **Stop loss**: bawah support kunci / swing low, buffer ATR × 2.0–2.5
+- **Take profit**: multi-level (1.5R, 2.5R, 3.5R)
+- **Time stop**: 20 hari bursa
+- **Position sizing**: `suggested_position_size_pct` (1-2% risk), `suggested_lots` (nullable)
+
+**Mode Position-Aware (run_position_review.py):**
+Semua field di atas **ditambah** konteks posisi:
+- **avg_price**, **current_vs_avg_pct** — status posisi vs harga rata-rata
+- **Entry zone** dihitung dari avg price, bukan current price
+- **Targets**: BE (avg price) + TP1/TP2/TP3 dari range avg→SL
+- **Entry note** menyebut status posisi (untung/rugi, avg price, current price)
 
 #### Chart Render (multi-panel matplotlib PNG)
 
-1. Panel utama: candlestick + SMA20/50/200 + EMA20/50 + Bollinger Bands + support/resistance + Fibonacci level + entry/SL/TP lines
+1. Panel utama: candlestick + SMA20/50/200 + EMA20/50 + BB + S/R + Fibonacci + entry/SL/TP
 2. Volume bar + Volume MA20 + volume spike highlight
-3. RSI + garis 30/70
+3. RSI + 30/70
 4. MACD + signal + histogram
-5. Stochastic + garis 20/80
+5. Stochastic + 20/80
 
-### 5.3 Frontend
+### 5.3 Frontend — Analisis Page (`/analisis`)
 
-- **Search box** autocomplete — fetch semua ticker sekali (`onMounted`), filter lokal via `computed`
+- **Search box** autocomplete — fetch semua ticker sekali (`onMounted`), filter lokal
 - **Date range picker** (`<input type="date">`, default 1 tahun)
 - **Tombol "Analisis"** + loading state
-- **Area hasil** (berurutan):
-  1. Snapshot card — price, 52w high/low, market cap, PE, EPS
-  2. Chart multi-panel (PNG dari backend)
-  3. Signal badge — overall + score + confidence + trend_filter_passed + expandable breakdown
-  4. Indikator grid — SMA20/50/200, EMA20, RSI, MACD, ADX, ATR, BB Width, volume spike, S/R, Fibonacci
-  5. Trading plan card — bias, entry, SL, multi-level TP table (dengan RR ratio), position size, time stop, invalidation note
-  6. Disclaimer — permanen, selalu terlihat
-  7. OHLCV table — collapsible (`<details>`)
-- **Nilai `#N/A` / null** → tampil sebagai "N/A"
+- **Tab system** (5 tabs di atas area hasil):
+  1. **Review** — signal badge + score + confidence + breakdown + trading plan (bias, entry, SL, multi-level TP table, position size, time stop, invalidation note) + disclaimer
+  2. **Indikator** — grid 14 indikator: SMA20/50/200, EMA20, RSI, MACD + signal, ADX + DI+/DI-, Stochastic %K/%D, BB Width, ATR, volume spike, S/R, Fibonacci levels
+  3. **Snapshot** — price, 52w high/low, market cap, PE, EPS, volume, currency
+  4. **AI Analisis** — button "Generate Analisis AI" (kalo belum ada) / rendered markdown insight
+  5. **Chart** — D3 interactive candlestick SVG (pan, zoom, crosshair tooltip) + Python multi-panel chart PNG
+- **Nilai `#N/A` / null** → "N/A"
+- **Disclaimer** permanen di bagian bawah
 
-## 6. Perbaikan & Peningkatan (dari review kode)
+### 5.4 Frontend — Positions Page (`/positions`)
+
+- **Daftar posisi** — cards grid (ticker, lot, avg price, P&L badge)
+- **Klik card** → `loadAnalysis(ticker)` → analisis + position review tampil di bawah
+- **Cache sessionStorage** — data analisis disimpan 5 menit, indicator "cached" di UI
+- **Tombol "Re-Analyze"** — hapus cache, fetch ulang
+- **Tab system** (4 tabs di atas area hasil):
+  1. **Review** — P&L cards (unrealized P&L, %, holding, recommendation) + trading plan position-aware (avg_price, entry_zone, SL, multi-level TP table dengan BE) + sinyal breakdown expandable
+  2. **Indikator** — grid 14 indikator (sama dengan halaman analisis)
+  3. **Snapshot** — fundamental data (price, 52w, market cap, PE, EPS, volume)
+  4. **AI Analisis** — jika `ai_insight` sudah ada di response → rendered markdown. Jika tidak → button "Generate Analisis AI" yang memanggil `/api/analisis/ai-insight` dengan konteks posisi (position, position_review, signal)
+
+### 5.5 AI Insight
+
+- **Endpoint**: `POST /api/analisis/ai-insight`
+- **Backend**: panggil NVIDIA DeepSeek V4 Flash → fallback Gemini 3.6 Flash
+- **Input opsional konteks posisi**: `position`, `position_review`, `signal` — untuk insight yang relevan dengan posisi user
+- **Dua mode prompt**:
+  - **Form A** (data punya signal + trading plan): AI narrate hasil kalkulasi sistem
+  - **Form B** (raw indicators only): AI analisis mandiri + bangun trading plan
+- **Cache in-memory**: per `ticker:date` key, expire end-of-day
+- **Frontend**: insight dirender sebagai HTML (bold, paragraph, line breaks). Auto-load jika sudah ada di response analisis. Dipanggil manual via tombol jika tidak ada.
+
+## 6. Perbaikan & Peningkatan Implementasi
 
 ### A. Python — Chart & Indikator
 
@@ -145,7 +232,7 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 |------|-----------|
 | A1 | Overlay SMA/EMA/BB di panel utama chart |
 | A2 | Gambar support/resistance & Fibonacci sebagai horizontal line + label |
-| A3 | `_swing_points()` return `(index, harga)` bukan list harga saja — marker swing tidak pernah salah tempat |
+| A3 | `_swing_points()` return `(index, harga)` — marker swing tidak pernah salah tempat |
 
 ### B. Python — Logika Sinyal & Trading Plan
 
@@ -157,7 +244,7 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 | B4 | ATR multiplier configurable, default 2.0–2.5× |
 | B5 | `time_stop_days` default 20 |
 | B6 | `suggested_lots` (nullable, butuh `--equity`) |
-| B7 | (Opsional) ARA/ARB BEI awareness warning |
+| B7 | **Position-aware trading plan**: avg_price, current_vs_avg_pct, BE target, position-based entry_note |
 
 ### C. Python — Robustness
 
@@ -176,17 +263,41 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 | D3 | `os.MkdirTemp` per-request ganti `os.TempDir()` manual |
 | D4 | Timeout subprocess configurable dari constructor |
 | D5 | Jangan swallow error `GetTicker` — minimal log warning |
-| D6 | Field baru Go struct: `Confidence`, `TrendFilterPassed`, `TimeStopDays`, `SuggestedLots` |
+| D6 | Field baru Go struct: `Confidence`, `TrendFilterPassed`, `TimeStopDays`, `SuggestedLots`, `Snapshot` |
 | D7 | `gofmt` konsisten |
+
+### E. AI Insight
+
+| Item | Deskripsi |
+|------|-----------|
+| E1 | NVIDIA DeepSeek V4 Flash sebagai primary, Gemini fallback |
+| E2 | Cache in-memory per `ticker:date` dengan daily expiry |
+| E3 | Konteks posisi dikirim ke AI (`position`, `position_review`, `signal`) untuk insight relevan — `AiInsightRequest` memiliki field `Position`, `PositionReview`, `SignalResult` |
+| E4 | Auto AI di backend **dihapus** dari `GetPositionAnalysis` — AI hanya dipanggil client-side via tab |
+
+### F. Frontend — UI/UX
+
+| Item | Deskripsi |
+|------|-----------|
+| F1 | **Tab system** di halaman analisis dan positions (review, indikator, snapshot, AI, chart) |
+| F2 | Sticky bottom bar diganti jadi tab bar di **atas** area hasil |
+| F3 | `isAdmin` gates dihapus — semua user lihat semua tab |
+| F4 | **SessionStorage cache** untuk analisis posisi (5 menit expiry) |
+| F5 | **Re-Analyze button** untuk refresh paksa |
+| F6 | **D3 chart** redraw otomatis saat tab chart diaktifkan (fix zero-width SVG) |
+| F7 | AI insight pre-loaded dari response, fallback ke generate button |
 
 ## 7. Keputusan Implementasi
 
 1. **Timing refresh GOOGLEFINANCE** — Backend **poll** sheet `chart` setiap 500ms, max 20× (10s timeout). Jika timeout, return error.
-2. **Handling #N/A** — Ditampilkan sebagai "N/A" di UI. Nilai numerik `0` dari `#N/A` dibedakan via `*float64`.
-3. **Concurrency** — `config.selected_ticker` adalah shared single cell. Tooling internal **single-user**, aman diabaikan. Upgrade path: per-session sheet atau queue.
+2. **Handling `#N/A`** — Tampil "N/A" di UI. Nilai numerik `0` via `*float64` untuk bedakan N/A vs 0 riil.
+3. **Concurrency** — `config.selected_ticker` adalah shared single cell. Tooling **single-user**, aman. Upgrade path: per-session sheet atau queue.
 4. **Python output** — stdout JSON + PNG file via `--out`. Go baca PNG sebagai base64.
 5. **Python discovery** — Auto-detect: `python3` → `py` → `python`, diverifikasi dengan `--version`.
-6. **Error propagation** — Python error output (field `error` di JSON stdout) diteruskan ke response API.
+6. **Error propagation** — Python error (field `error` di stdout JSON) diteruskan ke response API.
+7. **AI insight dipisah** — Tidak blocking analisis utama. Dipanggil terpisah hanya saat diminta user.
+8. **Cache analisis** — sessionStorage frontend (5 menit), bukan backend. Hindari re-fetch data yang sama dalam短期.
+9. **Position-aware trading plan** — Target TP dihitung dari avg price, bukan current price. BE target selalu disertakan.
 
 ## 8. Metrik Keberhasilan
 
@@ -195,4 +306,6 @@ Dibutuhkan menu **Analisis** di mana user bisa mencari ticker, memilih rentang t
 - Autocomplete terasa instant (filter lokal, tanpa network)
 - Tidak ada crash saat data mengandung `#N/A`, data historis pendek, atau ticker tidak lengkap
 - Trading plan konsisten matematis (RR ratio, SL/TP wajar relatif terhadap ATR & support/resistance)
+- Position-aware trading plan menampilkan avg price dan target yang relevan dengan posisi user
 - Chart PNG menampilkan seluruh overlay dan anotasi dengan benar
+- AI insight mengandung konteks posisi (bukan analisis umum) saat dipanggil dari halaman positions
