@@ -2,9 +2,9 @@ package analisis
 
 import "net/http"
 
-func SetupAnalisisRoutes(mux *http.ServeMux, handler *AnalisisHandler) {
+func SetupAnalisisRoutes(mux *http.ServeMux, handler *AnalisisHandler, authMiddleware func(http.Handler) http.Handler) {
 	mux.HandleFunc("GET /api/tickers", handler.SearchTickers)
 	mux.HandleFunc("GET /api/ticker/{kode}", handler.GetTicker)
-	mux.HandleFunc("POST /api/analisis", handler.PostAnalisis)
-	mux.HandleFunc("POST /api/analisis/ai-insight", handler.PostAiInsight)
+	mux.Handle("POST /api/analisis", authMiddleware(http.HandlerFunc(handler.PostAnalisis)))
+	mux.Handle("POST /api/analisis/ai-insight", authMiddleware(http.HandlerFunc(handler.PostAiInsight)))
 }

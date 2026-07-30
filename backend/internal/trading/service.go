@@ -44,13 +44,13 @@ func NewTradingService(db *gorm.DB, analisisSvc *analisis.AnalisisService, log *
 	}
 }
 
-func (s *TradingService) CreateTransaction(ctx context.Context, req *TransactionRequest) (*Transaction, error) {
+func (s *TradingService) CreateTransaction(ctx context.Context, req *TransactionRequest, userID uint) (*Transaction, error) {
 	var t Transaction
 	err := s.db.WithContext(ctx).Raw(
-		`INSERT INTO trade_transactions (ticker, transaction_type, lot, price, transaction_date, notes)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 RETURNING id, ticker, transaction_type, lot, price, transaction_date, notes, created_at`,
-		req.Ticker, req.TransactionType, req.Lot, req.Price, req.TransactionDate, nullableStr(req.Notes),
+		`INSERT INTO trade_transactions (user_id, ticker, transaction_type, lot, price, transaction_date, notes)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		 RETURNING id, user_id, ticker, transaction_type, lot, price, transaction_date, notes, created_at`,
+		userID, req.Ticker, req.TransactionType, req.Lot, req.Price, req.TransactionDate, nullableStr(req.Notes),
 	).Scan(&t).Error
 	if err != nil {
 		return nil, fmt.Errorf("insert transaction: %w", err)
@@ -58,10 +58,10 @@ func (s *TradingService) CreateTransaction(ctx context.Context, req *Transaction
 	return &t, nil
 }
 
-func (s *TradingService) GetTransactions(ctx context.Context, ticker string) ([]Transaction, error) {
-	query := `SELECT id, ticker, transaction_type, lot, price, transaction_date, notes, created_at
-		 FROM trade_transactions WHERE deleted_at IS NULL`
-	var args []interface{}
+func (s *TradingService) GetTransactions(ctx context.Context, userID uint, ticker string) ([]Transaction, error) {
+	query := `SELECT id, user_id, ticker, transaction_type, lot, price, transaction_date, notes, created_at
+		 FROM trade_transactions WHERE user_id = ? AND deleted_at IS NULL`
+	args := []interface{}{userID}
 	if ticker != "" {
 		query += ` AND ticker = ?`
 		args = append(args, ticker)
@@ -79,7 +79,7 @@ func (s *TradingService) GetTransactions(ctx context.Context, ticker string) ([]
 	return result, nil
 }
 
-func (s *TradingService) UpdateTransaction(ctx context.Context, id string, req *UpdateTransactionRequest) (*Transaction, error) {
+func (s *TradingService) UpdateTransaction(ctx context.Context, id string, userID uint, req *UpdateTransactionRequest) (*Transaction, error) {
 	query := `UPDATE trade_transactions SET `
 	var args []interface{}
 	var sets []string
@@ -119,9 +119,9 @@ func (s *TradingService) UpdateTransaction(ctx context.Context, id string, req *
 		}
 		query += s
 	}
-	query += " WHERE id = ? AND deleted_at IS NULL"
-	args = append(args, id)
-	query += " RETURNING id, ticker, transaction_type, lot, price, transaction_date, notes, created_at"
+	query += " WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+	args = append(args, id, userID)
+	query += " RETURNING id, user_id, ticker, transaction_type, lot, price, transaction_date, notes, created_at"
 
 	var t Transaction
 	err := s.db.WithContext(ctx).Raw(query, args...).Scan(&t).Error
@@ -131,9 +131,9 @@ func (s *TradingService) UpdateTransaction(ctx context.Context, id string, req *
 	return &t, nil
 }
 
-func (s *TradingService) DeleteTransaction(ctx context.Context, id string) error {
+func (s *TradingService) DeleteTransaction(ctx context.Context, id string, userID uint) error {
 	err := s.db.WithContext(ctx).Exec(
-		`UPDATE trade_transactions SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL`, id,
+		`UPDATE trade_transactions SET deleted_at = NOW() WHERE id = ? AND user_id = ? AND deleted_at IS NULL`, id, userID,
 	).Error
 	if err != nil {
 		return fmt.Errorf("delete transaction: %w", err)
@@ -176,10 +176,10 @@ func ComputePosition(transactions []Transaction) Position {
 	}
 }
 
-func (s *TradingService) GetAllOpenPositions(ctx context.Context) ([]Position, error) {
+func (s *TradingService) GetAllOpenPositions(ctx context.Context, userID uint) ([]Position, error) {
 	var tickers []string
 	err := s.db.WithContext(ctx).Raw(
-		`SELECT DISTINCT ticker FROM trade_transactions ORDER BY ticker`,
+		`SELECT DISTINCT ticker FROM trade_transactions WHERE user_id = ? ORDER BY ticker`, userID,
 	).Pluck("ticker", &tickers).Error
 	if err != nil {
 		return nil, fmt.Errorf("query tickers: %w", err)
@@ -187,7 +187,7 @@ func (s *TradingService) GetAllOpenPositions(ctx context.Context) ([]Position, e
 
 	var positions []Position
 	for _, ticker := range tickers {
-		txns, err := s.GetTransactions(ctx, ticker)
+		txns, err := s.GetTransactions(ctx, userID, ticker)
 		if err != nil {
 			s.log.WithError(err).WithField("ticker", ticker).Warn("get transactions failed")
 			continue
@@ -203,8 +203,8 @@ func (s *TradingService) GetAllOpenPositions(ctx context.Context) ([]Position, e
 	return positions, nil
 }
 
-func (s *TradingService) GetPositionAnalysis(ctx context.Context, ticker string) (*PositionReviewResponse, error) {
-	txns, err := s.GetTransactions(ctx, ticker)
+func (s *TradingService) GetPositionAnalysis(ctx context.Context, userID uint, ticker string) (*PositionReviewResponse, error) {
+	txns, err := s.GetTransactions(ctx, userID, ticker)
 	if err != nil {
 		return nil, fmt.Errorf("get transactions: %w", err)
 	}

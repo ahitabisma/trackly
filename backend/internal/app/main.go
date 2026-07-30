@@ -132,7 +132,7 @@ func Run() error {
 	user.SetupUserRoutes(mux, userHandler, authMiddleware, adminMiddleware)
 	company.SetupCompanyRoutes(mux, companyHandler, authMiddleware, adminMiddleware)
 	shareholding.SetupShareholdingRoutes(mux, shareHoldingHandler, adminMiddleware)
-	analisis.SetupAnalisisRoutes(mux, analisisHandler)
+	analisis.SetupAnalisisRoutes(mux, analisisHandler, authMiddleware)
 	trading.SetupTradingRoutes(mux, tradingHandler, authMiddleware)
 
 	// Apply CORS middleware

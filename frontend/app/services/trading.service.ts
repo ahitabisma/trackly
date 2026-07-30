@@ -1,4 +1,4 @@
-import { $fetch } from 'ofetch'
+import { api } from '~/utils/api'
 
 export interface TransactionRequest {
   ticker: string
@@ -52,26 +52,10 @@ export class TradingService {
       || 'https://api-trackly.aksanara.id'
   }
 
-  private getToken(): string | null {
-    try {
-      const raw = localStorage.getItem('trackly_session')
-      if (!raw) return null
-      const session = JSON.parse(raw)
-      return session?.token || null
-    } catch { return null }
-  }
-
-  private headers(): Record<string, string> {
-    const token = this.getToken()
-    const h: Record<string, string> = {}
-    if (token) h['Authorization'] = `Bearer ${token}`
-    return h
-  }
-
   async createTransaction(req: TransactionRequest): Promise<Transaction> {
     const url = `${this.getBaseURL()}/api/transactions`
-    const res = await $fetch<{ success: boolean; data: Transaction }>(url, {
-      method: 'POST', body: req, headers: this.headers(),
+    const res = await api<{ success: boolean; data: Transaction }>(url, {
+      method: 'POST', body: req,
     })
     return res.data
   }
@@ -84,45 +68,45 @@ export class TradingService {
     if (params?.type) q.set('type', params.type)
     const qs = q.toString()
     const url = `${this.getBaseURL()}/api/transactions${qs ? `?${qs}` : ''}`
-    const res = await $fetch<{ success: boolean; data: Transaction[] }>(url, {
-      method: 'GET', headers: this.headers(),
+    const res = await api<{ success: boolean; data: Transaction[] }>(url, {
+      method: 'GET',
     })
     return res.data || []
   }
 
   async getPositions(): Promise<Position[]> {
     const url = `${this.getBaseURL()}/api/positions`
-    const res = await $fetch<{ success: boolean; data: Position[] }>(url, {
-      method: 'GET', headers: this.headers(),
+    const res = await api<{ success: boolean; data: Position[] }>(url, {
+      method: 'GET',
     })
     return res.data || []
   }
 
   async getPositionAnalysis(ticker: string): Promise<PositionReviewResponse> {
     const url = `${this.getBaseURL()}/api/positions/${encodeURIComponent(ticker)}/analysis`
-    const res = await $fetch<{ success: boolean; data: PositionReviewResponse }>(url, {
-      method: 'GET', headers: this.headers(),
+    const res = await api<{ success: boolean; data: PositionReviewResponse }>(url, {
+      method: 'GET',
     })
     return res.data
   }
 
   async updateTransaction(id: number, req: UpdateTransactionRequest): Promise<Transaction> {
     const url = `${this.getBaseURL()}/api/transactions/${id}`
-    const res = await $fetch<{ success: boolean; data: Transaction }>(url, {
-      method: 'PATCH', body: req, headers: this.headers(),
+    const res = await api<{ success: boolean; data: Transaction }>(url, {
+      method: 'PATCH', body: req,
     })
     return res.data
   }
 
   async deleteTransaction(id: number): Promise<void> {
     const url = `${this.getBaseURL()}/api/transactions/${id}`
-    await $fetch(url, { method: 'DELETE', headers: this.headers() })
+    await api(url, { method: 'DELETE' })
   }
 
   async postAiInsight(ticker: string, dateEnd: string, indicators: any, snapshot?: any): Promise<string> {
     const url = `${this.getBaseURL()}/api/analisis/ai-insight`
-    const res = await $fetch<{ success: boolean; data: { ai_insight: string } }>(url, {
-      method: 'POST', body: { ticker, date_end: dateEnd, indicators, snapshot }, headers: this.headers(),
+    const res = await api<{ success: boolean; data: { ai_insight: string } }>(url, {
+      method: 'POST', body: { ticker, date_end: dateEnd, indicators, snapshot },
     })
     return res.data.ai_insight
   }

@@ -13,6 +13,7 @@ type TransactionRequest struct {
 
 type Transaction struct {
 	ID              string    `json:"id"`
+	UserID          uint      `json:"user_id"`
 	Ticker          string    `json:"ticker"`
 	TransactionType string    `json:"transaction_type"`
 	Lot             float64   `json:"lot"`

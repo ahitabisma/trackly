@@ -79,7 +79,7 @@ import { useRouter } from 'vue-router'
 import { useAuthForm } from '~/composables/useAuth'
 import { useAuthIcons } from '~/composables/useAuthIcons'
 
-definePageMeta({ layout: false })
+definePageMeta({ layout: false, middleware: 'guest' })
 
 const router = useRouter()
 const { SpinnerIcon } = useAuthIcons()

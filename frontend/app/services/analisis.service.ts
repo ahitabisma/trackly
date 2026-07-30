@@ -1,4 +1,4 @@
-import { $fetch } from 'ofetch'
+import { api } from '~/utils/api'
 
 export interface TickerSearchResult {
     kode: string
@@ -120,7 +120,7 @@ export class AnalisisService {
         try {
             const baseURL = this.getBaseURL()
             const url = `${baseURL}/api/tickers`
-            const response = await $fetch<{ success: boolean; data: TickerSearchResult[] }>(url, { method: 'GET' })
+            const response = await api<{ success: boolean; data: TickerSearchResult[] }>(url, { method: 'GET' })
             return response.data || []
         } catch (error) {
             console.error('Failed to load tickers:', error)
@@ -132,7 +132,7 @@ export class AnalisisService {
         try {
             const baseURL = this.getBaseURL()
             const url = `${baseURL}/api/ticker/${encodeURIComponent(kode)}`
-            const response = await $fetch<{ success: boolean; data: Snapshot }>(url, { method: 'GET' })
+            const response = await api<{ success: boolean; data: Snapshot }>(url, { method: 'GET' })
             return response.data
         } catch (error) {
             console.error('Failed to get ticker:', error)
@@ -144,7 +144,7 @@ export class AnalisisService {
         try {
             const baseURL = this.getBaseURL()
             const url = `${baseURL}/api/analisis`
-            const response = await $fetch<{ success: boolean; data: AnalisisResult }>(url, {
+            const response = await api<{ success: boolean; data: AnalisisResult }>(url, {
                 method: 'POST',
                 body: { ticker, date_start: dateStart, date_end: dateEnd },
             })
@@ -158,7 +158,7 @@ export class AnalisisService {
     async postAiInsight(ticker: string, dateEnd: string, indicators: Indicators, snapshot?: Snapshot): Promise<string> {
         const baseURL = this.getBaseURL()
         const url = `${baseURL}/api/analisis/ai-insight`
-        const response = await $fetch<{ success: boolean; data: { ai_insight: string } }>(url, {
+        const response = await api<{ success: boolean; data: { ai_insight: string } }>(url, {
             method: 'POST',
             body: { ticker, date_end: dateEnd, indicators, snapshot },
         })
