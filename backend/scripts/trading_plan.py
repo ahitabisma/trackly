@@ -259,6 +259,43 @@ def _disclaimer():
     )
 
 
+def _position_entry_note(buy_price, current_price, pnl_pct, entry_zone, stop_loss):
+    note = (
+        f"Kamu sudah hold di harga {_f(buy_price)}. "
+        f"Harga saat ini {_f(current_price)} ({pnl_pct}% dari avg). "
+        f"Stop loss teknikal di {_f(stop_loss)}."
+    )
+    if entry_zone and entry_zone.get('low') and entry_zone.get('high'):
+        note += (
+            f" Entry zone teknikal {_f(entry_zone['low'])} — {_f(entry_zone['high'])} "
+            f"tersedia untuk averaging down jika sesuai risk management."
+        )
+    return note
+
+
+def _position_targets(avg_price, stop_loss):
+    if stop_loss is None or avg_price <= stop_loss:
+        return []
+    risk_per_share = avg_price - stop_loss
+    targets = [{'level': 0, 'price': _f(avg_price), 'rr_ratio': 0}]
+    for i, mult in enumerate(R_MULTIPLIERS, 1):
+        targets.append({'level': i, 'price': _f(avg_price + risk_per_share * mult), 'rr_ratio': mult})
+    return targets
+
+
+def _pos_plan_buy(plan, buy_price, current_price, unrealized_pnl_pct):
+    return {
+        **plan,
+        'avg_price': _f(buy_price),
+        'current_vs_avg_pct': unrealized_pnl_pct,
+        'entry_note': _position_entry_note(
+            buy_price, current_price, unrealized_pnl_pct,
+            plan.get('entry_zone'), plan.get('stop_loss'),
+        ),
+        'targets': _position_targets(buy_price, plan.get('stop_loss')),
+    }
+
+
 def compute_position_review(ind, signal, buy_price, lot, buy_date):
     close = ind.get('_close')
     last_close = close.iloc[-1] if close is not None else None
@@ -270,12 +307,6 @@ def compute_position_review(ind, signal, buy_price, lot, buy_date):
     unrealized_pnl_pct = round((current_price - buy_price) / buy_price * 100, 2)
     holding_days = _holding_days(buy_date)
 
-    # Insight + trading plan LENGKAP dari harga sekarang -- pakai compute()
-    # yang sama kayak buat sinyal fresh (entry/entry_zone/SL/TP/invalidation),
-    # jadi orang yang udah pegang posisi juga dapet insight lengkap, bukan
-    # cuma rekomendasi hold/sell + 1 baris alasan. Ini juga sekalian
-    # ngilangin duplikasi logika stop-loss yang sebelumnya ada 2 tempat
-    # terpisah (bisa gampang divergen kalau salah satunya diubah).
     plan = compute(ind, signal)
 
     if plan['bias'] == 'avoid':
@@ -286,16 +317,19 @@ def compute_position_review(ind, signal, buy_price, lot, buy_date):
             f"Sinyal berubah bearish (score {signal.get('score')}). Kamu sudah hold saham ini -- "
             f"pertimbangkan review/keluar posisi sesuai rencana manajemen risiko kamu sendiri."
         )
+        pos_plan = {**plan, 'avg_price': _f(buy_price), 'current_vs_avg_pct': unrealized_pnl_pct}
     elif plan['bias'] == 'buy':
         recommendation = 'hold'
         suggested_exit_price = None
         suggested_stop = plan['stop_loss']
         reason = f"Sinyal masih {signal.get('overall', 'neutral')}. Hold selama harga di atas level invalidasi {suggested_stop}."
-    else:  # bias 'hold' -- data nggak cukup buat nentuin plan
+        pos_plan = _pos_plan_buy(plan, buy_price, current_price, unrealized_pnl_pct)
+    else:
         recommendation = 'hold'
         suggested_exit_price = None
         suggested_stop = None
         reason = plan['invalidation_note'] or 'Data tidak cukup untuk rekomendasi.'
+        pos_plan = {**plan, 'avg_price': _f(buy_price), 'current_vs_avg_pct': unrealized_pnl_pct}
 
     return {
         'ticker': signal.get('ticker'),
@@ -309,7 +343,7 @@ def compute_position_review(ind, signal, buy_price, lot, buy_date):
         'suggested_exit_price': suggested_exit_price,
         'suggested_stop': suggested_stop,
         'reason': reason,
-        'trading_plan': plan,  # insight + trading plan lengkap: bias, entry_price, entry_zone, entry_note, stop_loss, targets (TP1-3 + R:R), invalidation_note, dst -- format sama kayak hasil Analisis biasa
+        'trading_plan': pos_plan,
         'disclaimer': _disclaimer(),
     }
 

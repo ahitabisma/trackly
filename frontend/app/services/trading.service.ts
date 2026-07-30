@@ -36,13 +36,27 @@ export interface Position {
   status: string
 }
 
+export interface Snapshot {
+    kode: string
+    company_name: string
+    price: number
+    high52: number
+    low52: number
+    volume: number
+    marketcap: number
+    pe: number | null
+    eps: number
+    currency: string
+}
+
 export interface PositionReviewResponse {
-  ticker: string
-  position: Position
-  indicators: any
-  signal: any
-  position_review: Record<string, any>
-  ai_insight: string
+    ticker: string
+    position: Position
+    indicators: any
+    signal: any
+    position_review: Record<string, any>
+    snapshot?: Snapshot
+    ai_insight: string
 }
 
 export class TradingService {
@@ -103,10 +117,10 @@ export class TradingService {
     await api(url, { method: 'DELETE' })
   }
 
-  async postAiInsight(ticker: string, dateEnd: string, indicators: any, snapshot?: any): Promise<string> {
+  async postAiInsight(ticker: string, dateEnd: string, indicators: any, snapshot?: any, position?: any, positionReview?: any, signal?: any): Promise<string> {
     const url = `${this.getBaseURL()}/api/analisis/ai-insight`
     const res = await api<{ success: boolean; data: { ai_insight: string } }>(url, {
-      method: 'POST', body: { ticker, date_end: dateEnd, indicators, snapshot },
+      method: 'POST', body: { ticker, date_end: dateEnd, indicators, snapshot, position, position_review: positionReview, signal },
     })
     return res.data.ai_insight
   }

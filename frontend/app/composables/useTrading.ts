@@ -1,6 +1,30 @@
 import { ref } from 'vue'
 import { tradingService, type Transaction, type TransactionRequest, type Position, type PositionReviewResponse } from '~/services/trading.service'
 
+const CACHE_PREFIX = 'trackly_analysis_'
+const TS_KEY = 'trackly_analysis_ts'
+
+function loadCached<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function saveCache<T>(key: string, data: T) {
+  try { localStorage.setItem(key, JSON.stringify(data)) } catch { }
+}
+
+function removeCache(key: string) {
+  try { localStorage.removeItem(key) } catch { }
+}
+
+const _timestamps = ref<Record<string, string>>(loadCached<Record<string, string>>(TS_KEY) || {})
+
+function _persistTimestamps() {
+  saveCache(TS_KEY, _timestamps.value)
+}
+
 export function useTrading() {
   const transactions = ref<Transaction[]>([])
   const positions = ref<Position[]>([])
@@ -36,14 +60,42 @@ export function useTrading() {
     finally { loading.value = false }
   }
 
-  const loadAnalysis = async (ticker: string) => {
+  const loadAnalysis = async (ticker: string, forceRefresh = false) => {
     positionLoading.value = true; error.value = null; positionAnalysis.value = null; aiInsight.value = null
-    try { positionAnalysis.value = await tradingService.getPositionAnalysis(ticker) }
-    catch (e: any) { error.value = e?.message || 'Gagal muat analisis posisi' }
+    try {
+      if (!forceRefresh) {
+        const cached = loadCached<PositionReviewResponse>(CACHE_PREFIX + ticker)
+        if (cached) {
+          positionAnalysis.value = cached
+          positionLoading.value = false
+          return
+        }
+      }
+      const data = await tradingService.getPositionAnalysis(ticker)
+      positionAnalysis.value = data
+      saveCache(CACHE_PREFIX + ticker, data)
+      _timestamps.value[ticker] = new Date().toISOString()
+      _persistTimestamps()
+    } catch (e: any) { error.value = e?.message || 'Gagal muat analisis posisi' }
     finally { positionLoading.value = false }
   }
 
-  const requestAiInsight = async (ticker: string) : Promise<void> => {
+  const refreshAnalysis = async (ticker: string) => {
+    removeCache(CACHE_PREFIX + ticker)
+    delete _timestamps.value[ticker]
+    _persistTimestamps()
+    await loadAnalysis(ticker, true)
+  }
+
+  const getAnalysisTimestamp = (ticker: string): string => {
+    return _timestamps.value[ticker] || ''
+  }
+
+  const hasCachedAnalysis = (ticker: string): boolean => {
+    return !!_timestamps.value[ticker]
+  }
+
+  const requestAiInsight = async (ticker: string): Promise<void> => {
     aiLoading.value = true; aiError.value = null; aiInsight.value = null
     const pa = positionAnalysis.value
     if (!pa?.indicators) {
@@ -52,7 +104,11 @@ export function useTrading() {
       return
     }
     try {
-      aiInsight.value = await tradingService.postAiInsight(ticker, new Date().toISOString().split('T')[0], pa.indicators, null)
+      aiInsight.value = await tradingService.postAiInsight(ticker,
+        new Date().toISOString().split('T')[0],
+        pa.indicators, pa.snapshot || null,
+        pa.position, pa.position_review, pa.signal,
+      )
     } catch (e: any) { aiError.value = e?.message || 'AI insight failed' }
     finally { aiLoading.value = false }
   }
@@ -75,5 +131,5 @@ export function useTrading() {
     } catch (e: any) { error.value = e?.message || 'Gagal hapus'; throw e }
   }
 
-  return { transactions, positions, positionAnalysis, loading, positionLoading, error, aiInsight, aiLoading, aiError, add, load, loadPositions, loadAnalysis, requestAiInsight, updateTransaction, removeTransaction }
+  return { transactions, positions, positionAnalysis, loading, positionLoading, error, aiInsight, aiLoading, aiError, add, load, loadPositions, loadAnalysis, refreshAnalysis, getAnalysisTimestamp, hasCachedAnalysis, requestAiInsight, updateTransaction, removeTransaction }
 }

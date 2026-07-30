@@ -143,6 +143,15 @@ func (h *AnalisisHandler) PostAiInsight(w http.ResponseWriter, r *http.Request) 
 		"indicators": req.Indicators,
 		"snapshot":   req.Snapshot,
 	}
+	if req.Position != nil {
+		insightData["position"] = req.Position
+	}
+	if req.PositionReview != nil {
+		insightData["position_review"] = req.PositionReview
+	}
+	if req.Signal != nil {
+		insightData["signal"] = req.Signal
+	}
 	insight, err := aiinsight.GenerateInsight(r.Context(), h.cfg.NvidiaApiKey, h.cfg.GeminiApiKey, insightData)
 	if err != nil {
 		h.log.WithError(err).Warn("ai insight failed")

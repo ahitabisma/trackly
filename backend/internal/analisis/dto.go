@@ -121,8 +121,11 @@ type TickerSearchResult struct {
 }
 
 type AiInsightRequest struct {
-	Ticker     string      `json:"ticker" validate:"required"`
-	DateEnd    string      `json:"date_end" validate:"required"`
-	Indicators *Indicators `json:"indicators" validate:"required"`
-	Snapshot   *Snapshot   `json:"snapshot"`
+	Ticker         string                 `json:"ticker" validate:"required"`
+	DateEnd        string                 `json:"date_end" validate:"required"`
+	Indicators     *Indicators            `json:"indicators" validate:"required"`
+	Snapshot       *Snapshot              `json:"snapshot"`
+	Position       map[string]interface{} `json:"position,omitempty"`
+	PositionReview map[string]interface{} `json:"position_review,omitempty"`
+	Signal         *SignalResult          `json:"signal,omitempty"`
 }

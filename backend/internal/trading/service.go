@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"trackly-backend/internal/analisis"
-	"trackly-backend/pkg/aiinsight"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -243,22 +242,7 @@ func (s *TradingService) GetPositionAnalysis(ctx context.Context, userID uint, t
 		Indicators:     analisisResp.Indicators,
 		Signal:         analisisResp.Signal,
 		PositionReview: review,
-	}
-
-	insightKey := aiinsight.CacheKey(ticker, dateEnd, "position")
-	insightData := map[string]interface{}{
-		"_cache_key":      insightKey,
-		"position":        position,
-		"position_review": review,
-	}
-	if analisisResp.Signal != nil {
-		insightData["signal"] = analisisResp.Signal
-	}
-	insight, err := aiinsight.GenerateInsight(ctx, s.nvidiaKey, s.geminiKey, insightData)
-	if err != nil {
-		s.log.WithError(err).Warn("ai insight failed")
-	} else {
-		resp.AIInsight = insight
+		Snapshot:       analisisResp.Snapshot,
 	}
 
 	return resp, nil

@@ -1,6 +1,10 @@
 package trading
 
-import "time"
+import (
+	"time"
+
+	"trackly-backend/internal/analisis"
+)
 
 type TransactionRequest struct {
 	Ticker          string  `json:"ticker" validate:"required"`
@@ -45,5 +49,6 @@ type PositionReviewResponse struct {
 	Indicators       interface{}            `json:"indicators,omitempty"`
 	Signal           interface{}            `json:"signal,omitempty"`
 	PositionReview   map[string]interface{} `json:"position_review"`
+	Snapshot         *analisis.Snapshot     `json:"snapshot,omitempty"`
 	AIInsight        string                 `json:"ai_insight,omitempty"`
 }

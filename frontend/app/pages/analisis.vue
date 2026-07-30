@@ -2,11 +2,8 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import * as d3 from "d3";
 import { useTickerSearch, useAnalisis } from "~/composables/useAnalisis";
-import { useAuthSession } from "~/composables/useAuth";
 
 definePageMeta({ layout: "main", middleware: "auth" });
-
-const { isAdmin } = useAuthSession();
 
 const DATE_FORMATTER = (d: string) => {
   const dt = new Date(d);
@@ -60,6 +57,20 @@ const {
   aiError,
   requestAiInsight,
 } = useAnalisis();
+
+const activeTab = ref<"review" | "indicators" | "snapshot" | "ai" | "chart">("review");
+
+const handleAiTab = () => {
+  activeTab.value = "ai";
+  if (!aiInsight.value && !aiLoading.value && selectedTicker.value) {
+    requestAiInsight(
+      selectedTicker.value.kode,
+      dateEnd.value,
+      result.value!.indicators,
+      result.value!.snapshot,
+    );
+  }
+};
 
 const chartSvg = ref<SVGSVGElement | null>(null);
 const formatMd = (s: string) =>
@@ -299,6 +310,12 @@ watch(
   { deep: true },
 );
 
+watch(activeTab, (tab) => {
+  if (tab === 'chart' && result.value?.ohlcv?.length) {
+    nextTick(() => drawChart(result.value!.ohlcv));
+  }
+});
+
 onUnmounted(() => {
   if (d3Cleanup) d3Cleanup();
 });
@@ -441,6 +458,27 @@ onUnmounted(() => {
 
       <!-- Results -->
       <div v-if="result" class="space-y-6">
+        <!-- Tab Bar -->
+        <div class="flex gap-2 bg-card border-2 border-ink rounded-2xl p-1.5" style="box-shadow: 4px 4px 0 #1a1612">
+          <button
+            v-for="tab in [
+              { key: 'review', label: 'Review' },
+              { key: 'indicators', label: 'Indikator' },
+              { key: 'snapshot', label: 'Snapshot' },
+              { key: 'ai', label: 'AI Analisis' },
+              { key: 'chart', label: 'Chart' },
+            ]"
+            :key="tab.key"
+            class="flex-1 font-mono text-xs font-bold py-2.5 px-3 rounded-xl border-2 transition-all uppercase tracking-wider"
+            :class="activeTab === tab.key
+              ? 'bg-ink text-cream border-ink shadow-[2px_2px_0_#1a1612]'
+              : 'bg-card text-ink border-transparent hover:bg-gray-100'"
+            @click="tab.key === 'ai' ? handleAiTab() : (activeTab = tab.key as any)"
+          >{{ tab.label }}</button>
+        </div>
+
+        <!-- Tab: Review -->
+        <div v-show="activeTab === 'review'" class="space-y-6">
         <!-- Signal Badge -->
         <div
           v-if="result.signal"
@@ -688,9 +726,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Invalidation Note -->
-          <div v-if="isAdmin"
-            class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg"
-          >
+          <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div
               class="font-mono text-xs text-muted uppercase tracking-wider mb-1"
             >
@@ -713,20 +749,16 @@ onUnmounted(() => {
             </p>
           </div>
         </div>
+      </div>
 
+        <!-- Tab: AI -->
+        <div v-show="activeTab === 'ai'" class="space-y-6">
         <!-- AI Insight -->
         <div class="fu3">
           <button
             v-if="!aiInsight && !aiLoading"
             class="neo-btn-primary max-w-full"
-            @click="
-              requestAiInsight(
-                selectedTicker!.kode,
-                dateEnd.value,
-                result!.indicators,
-                result!.snapshot,
-              )
-            "
+            @click="handleAiTab"
             :disabled="aiLoading"
           >
             <span
@@ -782,10 +814,13 @@ onUnmounted(() => {
             </p>
           </div>
         </div>
+      </div>
 
+        <!-- Tab: Snapshot -->
+        <div v-show="activeTab === 'snapshot'" class="space-y-6">
         <!-- Snapshot Card -->
         <div
-          v-if="isAdmin && result.snapshot"
+          v-if="result.snapshot"
           class="fu2 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -847,10 +882,13 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+      </div>
 
+        <!-- Tab: Indikator -->
+        <div v-show="activeTab === 'indicators'" class="space-y-6">
         <!-- Indicators Grid -->
         <div
-          v-if="isAdmin && result.indicators"
+          v-if="result.indicators"
           class="fu3 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -938,10 +976,13 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
+      </div>
 
+        <!-- Tab: Chart -->
+        <div v-show="activeTab === 'chart'" class="space-y-6">
         <!-- D3 Candlestick Chart -->
         <div
-          v-if="isAdmin && result.ohlcv?.length"
+          v-if="result.ohlcv?.length"
           class="fu2 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -960,7 +1001,7 @@ onUnmounted(() => {
 
         <!-- Python Multi-panel Chart -->
         <div
-          v-if="isAdmin && result.chart_image"
+          v-if="result.chart_image"
           class="fu2 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
           style="box-shadow: 4px 4px 0 #1a1612"
         >
@@ -975,6 +1016,7 @@ onUnmounted(() => {
             alt="Technical Analysis Chart"
           />
         </div>
+      </div>
 
         <!-- OHLCV Table -->
         <!-- <details class="fu3 bg-card border-2 border-ink rounded-2xl p-5 sm:p-6"
