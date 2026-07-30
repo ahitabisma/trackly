@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"trackly-backend/internal/auth"
 	"trackly-backend/internal/company"
 	"trackly-backend/internal/investor"
+	"trackly-backend/internal/screening"
 	"trackly-backend/internal/shareholding"
 	"trackly-backend/internal/trading"
 	"trackly-backend/internal/user"
@@ -22,7 +24,37 @@ import (
 	"trackly-backend/pkg/jobs"
 	"trackly-backend/pkg/logger"
 	"trackly-backend/pkg/middleware"
+
+	"github.com/sirupsen/logrus"
 )
+
+func startNightlyScreening(svc *screening.Service, log *logrus.Logger) {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.WithError(err).Warn("failed to load Asia/Jakarta tz, using UTC")
+		loc = time.UTC
+	}
+
+	go func() {
+		for {
+			now := time.Now().In(loc)
+			next := time.Date(now.Year(), now.Month(), now.Day(), 21, 0, 0, 0, loc)
+			if !now.Before(next) {
+				next = next.Add(24 * time.Hour)
+			}
+			wait := next.Sub(now)
+			log.WithField("next_run", next.Format("2006-01-02 15:04:05 MST")).Info("nightly screening scheduled")
+
+			select {
+			case <-time.After(wait):
+				log.Info("nightly screening triggered")
+				if err := svc.RunNightlyScreening(context.Background()); err != nil {
+					log.WithError(err).Error("nightly screening failed")
+				}
+			}
+		}
+	}()
+}
 
 func Run() error {
 	cfg, err := config.Load()
@@ -134,6 +166,16 @@ func Run() error {
 	shareholding.SetupShareholdingRoutes(mux, shareHoldingHandler, adminMiddleware)
 	analisis.SetupAnalisisRoutes(mux, analisisHandler, authMiddleware)
 	trading.SetupTradingRoutes(mux, tradingHandler, authMiddleware)
+
+	// screening service + handler
+	scriptDir := filepath.Dir(cfg.AppsScript.PythonScriptPath)
+	screeningRepo := screening.NewRepository(db)
+	screeningService := screening.NewService(analisisService, screeningRepo, log, scriptDir, cfg.NvidiaApiKey, cfg.GeminiApiKey)
+	screeningHandler := screening.NewHandler(screeningService)
+	screening.SetupScreeningRoutes(mux, screeningHandler, authMiddleware)
+
+	// start nightly screening scheduler
+	startNightlyScreening(screeningService, log)
 
 	// Apply CORS middleware
 	allowedOrigins := []string{

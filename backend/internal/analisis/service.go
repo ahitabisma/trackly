@@ -199,7 +199,7 @@ func (s *AnalisisService) GetTicker(ctx context.Context, kode string) (*Snapshot
 	return nil, fmt.Errorf("ticker %s not found in google_finance", kode)
 }
 
-func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest) (*AnalisisResponse, error) {
+func (s *AnalisisService) fetchOHLCV(ctx context.Context, ticker, dateStart, dateEnd string) ([]OHLCVRow, error) {
 	slot, err := s.pool.AcquireWorker(ctx)
 	if err != nil {
 		return nil, err
@@ -217,7 +217,6 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 	acquiredAt := time.Now()
 	s.pool.Watchdog(slot, acquiredAt)
 
-	// ponytail: echo-check max 3 retries with 500ms interval
 	echoCheck := func() bool {
 		for attempt := 0; attempt < 3; attempt++ {
 			rows, err := s.client.GetSheet("config")
@@ -227,7 +226,7 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 				continue
 			}
 			m := buildConfigMap(rows)
-			if v, ok := m[fmt.Sprintf("selected_ticker_%d", slot)]; ok && v == req.Ticker {
+			if v, ok := m[fmt.Sprintf("selected_ticker_%d", slot)]; ok && v == ticker {
 				return true
 			}
 			s.log.WithField("config", m).Warn("echo-check: ticker mismatch, retrying")
@@ -236,20 +235,20 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 		return false
 	}
 
-	if err := s.client.SetValueByKey(fmt.Sprintf("selected_ticker_%d", slot), req.Ticker); err != nil {
+	if err := s.client.SetValueByKey(fmt.Sprintf("selected_ticker_%d", slot), ticker); err != nil {
 		return nil, fmt.Errorf("update selected_ticker_%d: %w", slot, err)
 	}
-	if err := s.client.SetValueByKey(fmt.Sprintf("date_start_%d", slot), req.DateStart); err != nil {
+	if err := s.client.SetValueByKey(fmt.Sprintf("date_start_%d", slot), dateStart); err != nil {
 		return nil, fmt.Errorf("update date_start_%d: %w", slot, err)
 	}
-	if err := s.client.SetValueByKey(fmt.Sprintf("date_end_%d", slot), req.DateEnd); err != nil {
+	if err := s.client.SetValueByKey(fmt.Sprintf("date_end_%d", slot), dateEnd); err != nil {
 		return nil, fmt.Errorf("update date_end_%d: %w", slot, err)
 	}
 
 	if !echoCheck() {
 		rows, _ := s.client.GetSheet("config")
 		cfgDump := buildConfigMap(rows)
-		return nil, fmt.Errorf("echo-check failed: slot %d ticker %q not in config: %v", slot, req.Ticker, cfgDump)
+		return nil, fmt.Errorf("echo-check failed: slot %d ticker %q not in config: %v", slot, ticker, cfgDump)
 	}
 
 	chartSheet := fmt.Sprintf("chart_%d", slot)
@@ -285,8 +284,19 @@ func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest)
 		return nil, fmt.Errorf("chart sheet not available after polling: %w", pollErr)
 	}
 
-	// Release worker early — chart data is safe, python is async from pool
 	release()
+	return ohlcv, nil
+}
+
+func (s *AnalisisService) FetchOHLCV(ctx context.Context, ticker, dateStart, dateEnd string) ([]OHLCVRow, error) {
+	return s.fetchOHLCV(ctx, ticker, dateStart, dateEnd)
+}
+
+func (s *AnalisisService) RunAnalisis(ctx context.Context, req *AnalisisRequest) (*AnalisisResponse, error) {
+	ohlcv, err := s.fetchOHLCV(ctx, req.Ticker, req.DateStart, req.DateEnd)
+	if err != nil {
+		return nil, err
+	}
 
 	snapshot, err := s.GetTicker(ctx, req.Ticker)
 	if err != nil {

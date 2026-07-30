@@ -13,6 +13,8 @@ Modul **Analisis** untuk meneliti saham secara teknikal: user mencari ticker, me
 
 Modul **Positions** untuk memantau posisi terbuka dari data transaksi riil (buy/sell) di database lokal: menampilkan P&L, posisi direview dengan analisis teknikal + trading plan yang **position-aware** (entry average, stop loss disesuaikan, target take profit berdasarkan avg price).
 
+Modul **Screening** untuk **nightly screening otomatis** seluruh ticker: menjalankan analisis teknikal ringan (indikator + sinyal saja) ke semua emiten di `master` secara paralel, mem-filter yang liquid + non-bearish, mengurutkan berdasarkan skor, lalu melakukan **deep pass** ke 10 besar (indikator lengkap + trading plan + AI insight). Hasil disimpan di database lokal dan bisa diakses via API. Screening berjalan otomatis setiap hari jam 21:00 WIB via in-process goroutine scheduler (tanpa cron dependency eksternal).
+
 > Output analisis & trading plan bersifat sinyal otomatis berbasis data historis, **bukan rekomendasi investasi**. Aplikasi wajib menampilkan disclaimer di UI.
 
 ## 2. Tujuan
@@ -27,6 +29,7 @@ Modul **Positions** untuk memantau posisi terbuka dari data transaksi riil (buy/
 - User bisa mendapatkan **AI insight** terpisah untuk analisis fundamental + sentimen naratif
 - Proses analisis end-to-end target < 10 detik
 - Data analisis di-cache sementara (sessionStorage 5 menit) untuk menghindari request ulang
+- **Nightly screening** otomatis seluruh ticker setiap 21:00 WIB — 10 saham terbaik berdasarkan confluence teknikal siap dilihat setiap pagi
 
 ## 3. Non-Goals
 
@@ -60,6 +63,15 @@ Modul **Positions** untuk memantau posisi terbuka dari data transaksi riil (buy/
 6. Analisis di-cache di sessionStorage (5 menit). User bisa klik "Re-Analyze" untuk refresh.
 7. AI insight dipanggil terpisah (client-side) hanya saat tab AI diklik
 
+### 4.3 Screening Page (`/screening`)
+
+1. User membuka menu **Screening** (atau halaman yang menampilkan hasil screening)
+2. `onMounted` → `GET /api/screening/latest` — mengambil hasil screening terbaru dari database
+3. Tampilkan **Top 10 Saham** dalam tabel: rank, ticker, nama, skor, sinyal (bullish/bearish/netral), confidence, avg volume
+4. Tiap baris bisa diklik → expand detail deep pass: indikator lengkap, trading plan, AI insight
+5. Jika belum ada screening hari ini → tampilkan data screening terakhir + label "Data kemarin"
+6. Admin bisa trigger ulang screening via tombol → `POST /api/screening/trigger`
+
 ## 5. Functional Requirements
 
 ### 5.1 Backend (Go)
@@ -74,6 +86,9 @@ Modul **Positions** untuk memantau posisi terbuka dari data transaksi riil (buy/
 | `/api/analisis/ai-insight` | POST | Body `{ticker, date_end, indicators, snapshot, position?, position_review?, signal?}` → LLM (NVIDIA fallback Gemini) → return markdown insight |
 | `/api/positions` | GET | Agregasi seluruh posisi terbuka dari tabel `trade_transactions` (buy/sell per ticker) |
 | `/api/positions/{ticker}/analysis` | GET | Analisis teknikal + position review untuk satu ticker yang dimiliki |
+| `/api/screening/latest` | GET | Hasil screening terbaru (Top 10 + full results) |
+| `/api/screening/{date}` | GET | Hasil screening per tanggal tertentu (YYYY-MM-DD) |
+| `/api/screening/trigger` | POST | Trigger screening manual (admin) — menjalankan ulang screening+deep pass+AI async |
 
 #### Response `/api/analisis`
 
@@ -141,6 +156,10 @@ Modul **Positions** untuk memantau posisi terbuka dari data transaksi riil (buy/
 **CLI (generate_chart.py):** `python generate_chart.py --input <temp.json> --ticker <KODE> --out <chart.png> [--equity <modal>]`
 
 **CLI (run_position_review.py):** `python run_position_review.py --input <temp.json> --ticker <KODE> --buy-price <harga> --lot <lot> --buy-date <YYYY-MM-DD>`
+
+**CLI (screening_pass.py):** `python screening_pass.py --input <temp.json>` — **lightweight, <1s/ticker**. Hanya indikator + sinyal (tanpa trading plan, tanpa chart). Output JSON: `{indicators, signal, avg_volume}`.
+
+**CLI (deep_pass.py):** `python deep_pass.py --input <temp.json> --ticker <KODE>` — indikator + sinyal + **trading plan** (tanpa chart). Output JSON: `{indicators, signal, trading_plan}`.
 
 **Stdout:** JSON `{ indicators: {...}, signal: {...}, trading_plan: {...} }` untuk generate_chart. `{ position_review: {...} }` untuk run_position_review.
 
@@ -213,7 +232,64 @@ Semua field di atas **ditambah** konteks posisi:
   3. **Snapshot** — fundamental data (price, 52w, market cap, PE, EPS, volume)
   4. **AI Analisis** — jika `ai_insight` sudah ada di response → rendered markdown. Jika tidak → button "Generate Analisis AI" yang memanggil `/api/analisis/ai-insight` dengan konteks posisi (position, position_review, signal)
 
-### 5.5 AI Insight
+### 5.5 Nightly Screening Service
+
+**Tujuan:** Setiap malam jam 21:00 WIB, sistem melakukan screening ke **seluruh ticker** di `master` untuk menemukan 10 saham terbaik secara teknikal.
+
+**Alur:**
+
+1. **Screening Pass** (seluruh ticker, paralel via goroutines):
+   - Fetch OHLCV 1 tahun via `FetchOHLCV()` (reuse worker pool dari analisis service)
+   - Jalankan `screening_pass.py` (indikator + sinyal saja — ringan, <1s/ticker)
+   - Kumpulkan hasil: `{ticker, score, overall, confidence, avg_volume}`
+   
+2. **Filter & Sort:**
+   - Filter: `avg_volume >= minAvgVolume` (1,000,000) — hanya saham liquid
+   - Filter: exclude `overall === 'bearish'` — hanya bullish/netral
+   - Sort by `score` descending, ambil **Top 10**
+
+3. **Deep Pass** (Top 10, sequential — karena mahal):
+   - Jalankan `deep_pass.py` (indikator + sinyal + **trading plan**)
+   - Panggil AI insight (`GenerateInsight`) untuk tiap ticker
+   - Kumpulkan: `{indicators, signal, trading_plan, ai_insight}`
+
+4. **Simpan:**
+   - `daily_screening_results` table: satu row per ticker per tanggal
+   - Field: `ticker`, `score`, `overall`, `confidence`, `avg_volume`, `rank` (NULL untuk non-top-10), `indicators_json`, `signal_json`, `trading_plan_json`, `ai_insight`
+   - **Upsert** (ON CONFLICT DO UPDATE) — aman di-trigger ulang
+
+**Worker pool:** Screening pass menggunakan worker pool yang sama dengan analisis service (10 slot). Jika pool penuh, screening pass menunggu.
+
+**Scheduler:** In-process goroutine tanpa cron dependency:
+- Hitung waktu ke 21:00 WIB berikutnya → `time.After()`
+- Trigger screening
+- Loop ke hari berikutnya
+
+**Manual trigger:** `POST /api/screening/trigger` menjalankan ulang screening kapan saja.
+
+#### Database Model: `daily_screening_results`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | BIGSERIAL | Primary key |
+| ticker | VARCHAR(10) | Kode saham |
+| screening_date | DATE | Tanggal screening |
+| score | FLOAT | Normalized confluence score (-1 to 1) |
+| overall | VARCHAR(10) | bullish/bearish/netral |
+| confidence | VARCHAR(10) | high/medium/low |
+| avg_volume | BIGINT | Rata-rata volume harian |
+| rank | INT | Peringkat (1-10 untuk top 10, NULL untuk non-top-10) |
+| indicators_json | JSONB | Output lengkap indicators (null untuk screening pass) |
+| signal_json | JSONB | Output lengkap signal |
+| trading_plan_json | JSONB | Trading plan (null untuk non-top-10) |
+| ai_insight | TEXT | Markdown AI insight (null untuk non-top-10) |
+| is_deep_pass | BOOLEAN | Apakah ticker masuk deep pass |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+**Index:** UNIQUE(ticker, screening_date), INDEX(screening_date, rank)
+
+### 5.6 AI Insight
 
 - **Endpoint**: `POST /api/analisis/ai-insight`
 - **Backend**: panggil NVIDIA DeepSeek V4 Flash → fallback Gemini 3.6 Flash
@@ -287,6 +363,21 @@ Semua field di atas **ditambah** konteks posisi:
 | F6 | **D3 chart** redraw otomatis saat tab chart diaktifkan (fix zero-width SVG) |
 | F7 | AI insight pre-loaded dari response, fallback ke generate button |
 
+### G. Nightly Screening
+
+| Item | Deskripsi |
+|------|-----------|
+| G1 | `screening_pass.py` — lightweight script (indicators + signals only, <1s/ticker) untuk screening massal |
+| G2 | `deep_pass.py` — medium script (indicators + signals + trading_plan, no chart) untuk top 10 |
+| G3 | `fetchOHLCV()` diekstrak dari `RunAnalisis` jadi method sendiri, reusable untuk screening |
+| G4 | Screening pass **semua ticker paralel** via goroutines — tiap goroutine acquire worker pool slot |
+| G5 | Filter liquid (min volume 1jt) + non-bearish, sort score → Top 10 |
+| G6 | Deep pass sequential (AI insight mahal) — indicators + trading_plan + AI untuk top 10 |
+| G7 | **Upsert** (`ON CONFLICT DO UPDATE`) — aman trigger ulang tanpa duplikasi |
+| G8 | **Scheduler in-process** — hitung next 21:00 WIB, `time.After()`, trigger, loop. Tidak perlu cron external |
+| G9 | Manual trigger via `POST /api/screening/trigger` |
+| G10 | Tabel `daily_screening_results` dengan JSONB untuk indicators/signal/trading_plan — flexible, no schema changes saat indikator bertambah |
+
 ## 7. Keputusan Implementasi
 
 1. **Timing refresh GOOGLEFINANCE** — Backend **poll** sheet `chart` setiap 500ms, max 20× (10s timeout). Jika timeout, return error.
@@ -298,6 +389,7 @@ Semua field di atas **ditambah** konteks posisi:
 7. **AI insight dipisah** — Tidak blocking analisis utama. Dipanggil terpisah hanya saat diminta user.
 8. **Cache analisis** — sessionStorage frontend (5 menit), bukan backend. Hindari re-fetch data yang sama dalam短期.
 9. **Position-aware trading plan** — Target TP dihitung dari avg price, bukan current price. BE target selalu disertakan.
+10. **Nightly screening parallel** — Semua ticker di-screen paralel via goroutines. Worker pool (10 slot) mencegah overload Python subprocess. Filter liquid + non-bearish sebelum sort. Deep pass + AI hanya untuk top 10 — hemat resource.
 
 ## 8. Metrik Keberhasilan
 
@@ -309,3 +401,6 @@ Semua field di atas **ditambah** konteks posisi:
 - Position-aware trading plan menampilkan avg price dan target yang relevan dengan posisi user
 - Chart PNG menampilkan seluruh overlay dan anotasi dengan benar
 - AI insight mengandung konteks posisi (bukan analisis umum) saat dipanggil dari halaman positions
+- Nightly screening selesai < 30 menit untuk seluruh ticker (parallel screening pass)
+- Top 10 menampilkan ticker yang liquid, trending, dan memiliki skor confluence tinggi
+- Deep pass memberikan trading plan + AI insight yang relevan untuk tiap ticker di top 10
