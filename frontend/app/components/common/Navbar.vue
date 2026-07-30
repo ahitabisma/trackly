@@ -7,7 +7,7 @@ const router = useRouter()
 const menuOpen = ref(false)
 const isMobile = ref(false)
 const profileOpen = ref(false)
-const { isLoggedIn, user, clear: logout } = useAuthSession()
+const { isLoggedIn, isAdmin, user, clear: logout } = useAuthSession()
 
 const getLinkClassName = (href: string) => {
     let classes = "neo-btn-sm"
@@ -61,6 +61,9 @@ onUnmounted(() => {
                 </NuxtLink>
                 <NuxtLink v-if="isLoggedIn" to="/trading" :class="getLinkClassName('/trading')">
                     Trading
+                </NuxtLink>
+                <NuxtLink v-if="isAdmin" to="/screening" :class="getLinkClassName('/screening')">
+                    Screening
                 </NuxtLink>
 
                 <template v-if="isLoggedIn">
@@ -123,6 +126,9 @@ onUnmounted(() => {
                 </NuxtLink>
                 <NuxtLink v-if="isLoggedIn" to="/trading" :class="getLinkClassName('/trading')" @click="closeMenu">
                     Trading
+                </NuxtLink>
+                <NuxtLink v-if="isAdmin" to="/screening" :class="getLinkClassName('/screening')" @click="closeMenu">
+                    Screening
                 </NuxtLink>
 
                 <template v-if="isLoggedIn">

@@ -172,7 +172,7 @@ func Run() error {
 	screeningRepo := screening.NewRepository(db)
 	screeningService := screening.NewService(analisisService, screeningRepo, log, scriptDir, cfg.NvidiaApiKey, cfg.GeminiApiKey)
 	screeningHandler := screening.NewHandler(screeningService)
-	screening.SetupScreeningRoutes(mux, screeningHandler, authMiddleware)
+	screening.SetupScreeningRoutes(mux, screeningHandler, authMiddleware, adminMiddleware)
 
 	// start nightly screening scheduler
 	startNightlyScreening(screeningService, log)
