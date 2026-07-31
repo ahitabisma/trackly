@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	minAvgVolume   = 1000000.0
-	dateRangeDays  = "365"
-	pythonTimeout  = 30 * time.Second
+	minAvgVolume          = 1000000.0
+	dateRangeDays         = "365"
+	pythonTimeout         = 30 * time.Second
+	screeningConcurrency  = 5 // ponytail: bounds concurrent Apps Script fetches; raise once sheets keep up
 )
 
 type Service struct {
@@ -98,9 +99,12 @@ func (s *Service) RunNightlyScreening(ctx context.Context) error {
 		err    error
 	}
 	results := make(chan tickerResult, len(tickers))
+	sem := make(chan struct{}, screeningConcurrency)
 
 	for _, t := range tickers {
 		go func(kode string) {
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			r, err := s.screeningPass(ctx, kode, dateStart, dateEnd)
 			results <- tickerResult{ticker: kode, result: r, err: err}
 		}(t.Kode)

@@ -10,6 +10,7 @@ class _NumpyEncoder(json.JSONEncoder):
         if isinstance(o, (np.integer,)): return int(o)
         if isinstance(o, (np.floating,)): return float(o)
         if isinstance(o, np.bool_): return bool(o)
+        if isinstance(o, np.ndarray): return o.tolist()
         return super().default(o)
 
 def main():
@@ -40,7 +41,7 @@ def main():
     plan = compute_plan(ind, sig)
 
     out = {
-        "indicators": ind,
+        "indicators": {k: v for k, v in ind.items() if not k.startswith('_')},
         "signal": sig,
         "trading_plan": plan,
     }

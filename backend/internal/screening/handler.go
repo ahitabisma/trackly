@@ -45,7 +45,7 @@ func (h *Handler) TriggerScreening(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		// r.Context() is cancelled once this handler returns — use a detached
 		// context so the goroutine survives the HTTP lifecycle.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 		defer cancel()
 		if err := h.svc.RunNightlyScreening(ctx); err != nil {
 			h.svc.log.WithError(err).Error("manual screening trigger failed")
