@@ -20,10 +20,12 @@ import (
 )
 
 const (
-	minAvgVolume          = 1000000.0
-	dateRangeDays         = "365"
-	pythonTimeout         = 30 * time.Second
-	screeningConcurrency  = 5 // ponytail: bounds concurrent Apps Script fetches; raise once sheets keep up
+	minAvgVolume            = 1000000.0
+	dateRangeDays           = "365"
+	pythonTimeout           = 30 * time.Second
+	screeningConcurrency    = 3 // ponytail: Apps Script time limit; 3 concurrent fetches stays under 30s client timeout
+	screeningMaxRetries     = 2
+	screeningRetryBackoff   = 3 * time.Second
 )
 
 type Service struct {
@@ -93,33 +95,23 @@ func (s *Service) RunNightlyScreening(ctx context.Context) error {
 	dateEnd := time.Now().Format("2006-01-02")
 	dateStart := time.Now().AddDate(0, 0, -365).Format("2006-01-02")
 
-	type tickerResult struct {
-		ticker string
-		result *screeningResult
-		err    error
-	}
-	results := make(chan tickerResult, len(tickers))
-	sem := make(chan struct{}, screeningConcurrency)
-
-	for _, t := range tickers {
-		go func(kode string) {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			r, err := s.screeningPass(ctx, kode, dateStart, dateEnd)
-			results <- tickerResult{ticker: kode, result: r, err: err}
-		}(t.Kode)
+	allTickers := make([]string, len(tickers))
+	for i, t := range tickers {
+		allTickers[i] = t.Kode
 	}
 
 	var screened []screeningResult
-	for range tickers {
-		tr := <-results
-		if tr.err != nil {
-			s.log.WithField("ticker", tr.ticker).WithError(tr.err).Warn("screening pass skipped")
-			continue
-		}
-		if tr.result != nil {
-			screened = append(screened, *tr.result)
-		}
+	ok, failed := s.runScreeningPass(ctx, allTickers, dateStart, dateEnd)
+	screened = append(screened, ok...)
+
+	for attempt := 1; attempt <= screeningMaxRetries && len(failed) > 0; attempt++ {
+		time.Sleep(screeningRetryBackoff)
+		s.log.WithFields(logrus.Fields{"attempt": attempt, "retry_count": len(failed)}).Info("retrying failed tickers")
+		ok, failed = s.runScreeningPass(ctx, failed, dateStart, dateEnd)
+		screened = append(screened, ok...)
+	}
+	if len(failed) > 0 {
+		s.log.WithField("still_failing", len(failed)).Warn("screening retries exhausted")
 	}
 
 	s.log.WithField("passed", len(screened)).Info("screening pass complete")
@@ -170,6 +162,41 @@ func (s *Service) screeningPass(ctx context.Context, ticker, dateStart, dateEnd 
 	}
 
 	return result, nil
+}
+
+type tickerResult struct {
+	ticker string
+	result *screeningResult
+	err    error
+}
+
+func (s *Service) runScreeningPass(ctx context.Context, tickers []string, dateStart, dateEnd string) ([]screeningResult, []string) {
+	results := make(chan tickerResult, len(tickers))
+	sem := make(chan struct{}, screeningConcurrency)
+
+	for _, kode := range tickers {
+		go func(k string) {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			r, err := s.screeningPass(ctx, k, dateStart, dateEnd)
+			results <- tickerResult{ticker: k, result: r, err: err}
+		}(kode)
+	}
+
+	var ok []screeningResult
+	var failed []string
+	for range tickers {
+		tr := <-results
+		if tr.err != nil {
+			s.log.WithField("ticker", tr.ticker).WithError(tr.err).Warn("screening pass skipped")
+			failed = append(failed, tr.ticker)
+			continue
+		}
+		if tr.result != nil {
+			ok = append(ok, *tr.result)
+		}
+	}
+	return ok, failed
 }
 
 type screeningPyOutput struct {
