@@ -128,6 +128,7 @@ func (s *Service) RunNightlyScreening(ctx context.Context) error {
 	s.log.WithField("top", len(filtered)).Info("filtered top results")
 
 	for i, r := range filtered {
+		s.log.WithFields(logrus.Fields{"ticker": r.Ticker, "rank": i + 1}).Info("deep pass")
 		plan, aiText, err := s.deepPass(ctx, r.Ticker, dateStart, dateEnd)
 		if err != nil {
 			s.log.WithField("ticker", r.Ticker).WithError(err).Warn("deep pass failed, saving without plan")
@@ -154,6 +155,7 @@ func (s *Service) RunNightlyScreening(ctx context.Context) error {
 }
 
 func (s *Service) screeningPass(ctx context.Context, ticker, dateStart, dateEnd string) (*screeningResult, error) {
+	s.log.WithField("ticker", ticker).Info("screening ticker")
 	ohlcv, err := s.analisisSvc.FetchOHLCV(ctx, ticker, dateStart, dateEnd)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
