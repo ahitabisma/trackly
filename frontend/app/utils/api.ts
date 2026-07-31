@@ -1,9 +1,7 @@
 import { $fetch } from 'ofetch'
+import { useRuntimeConfig } from '#imports'
 
 const SESSION_KEY = 'trackly_session'
-
-// Vite replaces NUXT_PUBLIC_* vars at build/dev time
-const BASE_URL = import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 function getToken(): string | null {
     try {
@@ -21,17 +19,33 @@ function clearSession() {
     }
 }
 
-export const api = $fetch.create({
-    baseURL: BASE_URL,
-    onRequest({ options }) {
-        const token = getToken()
-        if (token) {
-            options.headers = { ...options.headers, Authorization: `Bearer ${token}` }
-        }
+function createApi() {
+    const config = useRuntimeConfig()
+    return $fetch.create({
+        baseURL: config.public.apiUrl,
+        onRequest({ options }) {
+            const token = getToken()
+            if (token) {
+                options.headers = { ...options.headers, Authorization: `Bearer ${token}` }
+            }
+        },
+        onResponseError({ response }) {
+            if (response.status === 401) {
+                clearSession()
+            }
+        },
+    })
+}
+
+let _api: ReturnType<typeof $fetch.create> | undefined
+
+export const api = new Proxy({} as any, {
+    get(_, prop) {
+        if (!_api) _api = createApi()
+        return Reflect.get(_api, prop, _api)
     },
-    onResponseError({ response }) {
-        if (response.status === 401) {
-            clearSession()
-        }
+    apply(_, __, args) {
+        if (!_api) _api = createApi()
+        return Reflect.apply(_api as any, null, args)
     },
 })
