@@ -29,6 +29,9 @@ type AnalisisService struct {
 	pythonTimeout  time.Duration
 	pollInterval   time.Duration
 	pollMaxRetries int
+	// configMu serializes config-sheet writes+echo; concurrent writes to the
+	// shared config sheet race in Apps Script without LockService.
+	configMu sync.Mutex
 }
 
 func NewAnalisisService(client *appsscript.Client, log *logrus.Logger, pool *WorkerPool, pythonPath string, pollInterval time.Duration, pollMaxRetries int, opts ...func(*AnalisisService)) *AnalisisService {
@@ -235,21 +238,35 @@ func (s *AnalisisService) fetchOHLCV(ctx context.Context, ticker, dateStart, dat
 		return false
 	}
 
+	s.configMu.Lock()
 	if err := s.client.SetValueByKey(fmt.Sprintf("selected_ticker_%d", slot), ticker); err != nil {
+		s.configMu.Unlock()
 		return nil, fmt.Errorf("update selected_ticker_%d: %w", slot, err)
 	}
 	if err := s.client.SetValueByKey(fmt.Sprintf("date_start_%d", slot), dateStart); err != nil {
+		s.configMu.Unlock()
 		return nil, fmt.Errorf("update date_start_%d: %w", slot, err)
 	}
 	if err := s.client.SetValueByKey(fmt.Sprintf("date_end_%d", slot), dateEnd); err != nil {
+		s.configMu.Unlock()
 		return nil, fmt.Errorf("update date_end_%d: %w", slot, err)
 	}
 
 	if !echoCheck() {
-		rows, _ := s.client.GetSheet("config")
-		cfgDump := buildConfigMap(rows)
-		return nil, fmt.Errorf("echo-check failed: slot %d ticker %q not in config: %v", slot, ticker, cfgDump)
+		// lost-write guard: re-write ticker once and re-check before giving up
+		s.log.WithField("slot", slot).Warn("echo-check mismatch, re-writing ticker")
+		if err := s.client.SetValueByKey(fmt.Sprintf("selected_ticker_%d", slot), ticker); err != nil {
+			s.configMu.Unlock()
+			return nil, fmt.Errorf("re-update selected_ticker_%d: %w", slot, err)
+		}
+		if !echoCheck() {
+			rows, _ := s.client.GetSheet("config")
+			cfgDump := buildConfigMap(rows)
+			s.configMu.Unlock()
+			return nil, fmt.Errorf("echo-check failed: slot %d ticker %q not in config: %v", slot, ticker, cfgDump)
+		}
 	}
+	s.configMu.Unlock()
 
 	chartSheet := fmt.Sprintf("chart_%d", slot)
 	var ohlcv []OHLCVRow
