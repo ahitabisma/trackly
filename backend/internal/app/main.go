@@ -167,6 +167,11 @@ func Run() error {
 	analisis.SetupAnalisisRoutes(mux, analisisHandler, authMiddleware)
 	trading.SetupTradingRoutes(mux, tradingHandler, authMiddleware)
 
+	// auto-migrate screening table
+	if err := db.AutoMigrate(&screening.DailyScreeningResult{}); err != nil {
+		log.WithError(err).Fatal("failed to auto-migrate screening table")
+	}
+
 	// screening service + handler
 	scriptDir := filepath.Dir(cfg.AppsScript.PythonScriptPath)
 	screeningRepo := screening.NewRepository(db)
