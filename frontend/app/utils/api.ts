@@ -2,6 +2,9 @@ import { $fetch } from 'ofetch'
 
 const SESSION_KEY = 'trackly_session'
 
+// Vite replaces NUXT_PUBLIC_* vars at build/dev time
+const BASE_URL = import.meta.env.NUXT_PUBLIC_API_URL || 'http://localhost:8080'
+
 function getToken(): string | null {
     try {
         const raw = localStorage.getItem(SESSION_KEY)
@@ -19,6 +22,7 @@ function clearSession() {
 }
 
 export const api = $fetch.create({
+    baseURL: BASE_URL,
     onRequest({ options }) {
         const token = getToken()
         if (token) {
