@@ -36,15 +36,38 @@ type Service struct {
 }
 
 func NewService(analisisSvc *analisis.AnalisisService, repo *Repository, log *logrus.Logger, scriptDir, nvidiaKey, geminiKey string) *Service {
+	absDir, err := filepath.Abs(scriptDir)
+	if err != nil {
+		absDir = scriptDir
+	}
 	return &Service{
 		analisisSvc: analisisSvc,
 		repo:        repo,
 		log:         log,
 		pythonBin:   "python",
-		scriptDir:   scriptDir,
+		scriptDir:   absDir,
 		nvidiaKey:   nvidiaKey,
 		geminiKey:   geminiKey,
 	}
+}
+
+func (s *Service) findPython() string {
+	candidates := []string{"python", "python3", "py"}
+	for _, name := range candidates {
+		if name == "" {
+			continue
+		}
+		path, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		// verify it's real Python (not Store redirector) by running --version
+		cmd := exec.Command(path, "--version")
+		if out, err := cmd.CombinedOutput(); err == nil && len(out) > 0 {
+			return name
+		}
+	}
+	return s.pythonBin
 }
 
 type screeningResult struct {
@@ -182,7 +205,7 @@ func (s *Service) runScreeningPython(ohlcv []analisis.OHLCVRow, ticker string) (
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, s.pythonBin, script, "--input", inputFile, "--ticker", ticker)
+	cmd := exec.CommandContext(ctx, s.findPython(), script, "--input", inputFile, "--ticker", ticker)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -270,7 +293,7 @@ func (s *Service) runDeepPython(ohlcv []analisis.OHLCVRow, ticker string) (map[s
 	defer cancel()
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, s.pythonBin, script, "--input", inputFile, "--ticker", ticker)
+	cmd := exec.CommandContext(ctx, s.findPython(), script, "--input", inputFile, "--ticker", ticker)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 

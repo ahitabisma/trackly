@@ -22,7 +22,15 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	// Jika ada fields, serialize sebagai JSON di msg field
 	if len(entry.Data) > 0 {
-		msgData := entry.Data
+		msgData := make(map[string]interface{}, len(entry.Data))
+		for k, v := range entry.Data {
+			// stringify error values — error objects marshal as {} (unexported fields)
+			if err, ok := v.(error); ok {
+				msgData[k] = err.Error()
+			} else {
+				msgData[k] = v
+			}
+		}
 		msgBytes, _ := json.Marshal(msgData)
 		logData["msg"] = string(msgBytes)
 	} else {
