@@ -1,4 +1,5 @@
-import { api } from '~/utils/api'
+import { $fetch } from 'ofetch'
+import type { Response } from '~/types/response.type'
 
 export interface ScreeningResult {
   id: string
@@ -14,8 +15,55 @@ export interface ScreeningResult {
   created_at: string
 }
 
-export const screeningService = {
-  getLatest: () => api<{ data: ScreeningResult[] }>('/api/screening/latest'),
-  getByDate: (date: string) => api<{ data: ScreeningResult[] }>(`/api/screening/${date}`),
-  triggerScreening: () => api<{ data: { status: string } }>('/api/screening/trigger', { method: 'POST' }),
+export class ScreeningService {
+  private getBaseURL(): string {
+    const url = (typeof globalThis !== 'undefined' && (globalThis as any).__API_URL__)
+      || (typeof process !== 'undefined' && process.env.NUXT_PUBLIC_API_URL)
+      || 'https://api-trackly.aksanara.id'
+    return url
+  }
+
+  async getLatest(): Promise<Response> {
+    try {
+      const baseURL = this.getBaseURL()
+      const url = `${baseURL}/api/screening/latest`
+
+      const response = await $fetch<Response>(url, { method: 'GET' })
+
+      return response
+    } catch (error) {
+      console.error('Failed to fetch latest screening:', error)
+      throw error
+    }
+  }
+
+  async getByDate(date: string): Promise<Response> {
+    try {
+      const baseURL = this.getBaseURL()
+      const url = `${baseURL}/api/screening/${date}`
+
+      const response = await $fetch<Response>(url, { method: 'GET' })
+
+      return response
+    } catch (error) {
+      console.error('Failed to fetch screening by date:', error)
+      throw error
+    }
+  }
+
+  async triggerScreening(): Promise<Response> {
+    try {
+      const baseURL = this.getBaseURL()
+      const url = `${baseURL}/api/screening/trigger`
+
+      const response = await $fetch<Response>(url, { method: 'POST' })
+
+      return response
+    } catch (error) {
+      console.error('Failed to trigger screening:', error)
+      throw error
+    }
+  }
 }
+
+export const screeningService = new ScreeningService()
