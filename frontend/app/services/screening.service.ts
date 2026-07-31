@@ -1,6 +1,22 @@
 import { $fetch } from 'ofetch'
 import type { Response } from '~/types/response.type'
 
+const SESSION_KEY = 'trackly_session'
+
+function getToken(): string | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    if (!raw) return null
+    const session = JSON.parse(raw)
+    return session?.token || null
+  } catch { return null }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 export interface ScreeningResult {
   id: string
   scan_date: string
@@ -27,9 +43,7 @@ export class ScreeningService {
     try {
       const baseURL = this.getBaseURL()
       const url = `${baseURL}/api/screening/latest`
-
-      const response = await $fetch<Response>(url, { method: 'GET' })
-
+      const response = await $fetch<Response>(url, { method: 'GET', headers: authHeaders() })
       return response
     } catch (error) {
       console.error('Failed to fetch latest screening:', error)
@@ -41,9 +55,7 @@ export class ScreeningService {
     try {
       const baseURL = this.getBaseURL()
       const url = `${baseURL}/api/screening/${date}`
-
-      const response = await $fetch<Response>(url, { method: 'GET' })
-
+      const response = await $fetch<Response>(url, { method: 'GET', headers: authHeaders() })
       return response
     } catch (error) {
       console.error('Failed to fetch screening by date:', error)
@@ -55,9 +67,7 @@ export class ScreeningService {
     try {
       const baseURL = this.getBaseURL()
       const url = `${baseURL}/api/screening/trigger`
-
-      const response = await $fetch<Response>(url, { method: 'POST' })
-
+      const response = await $fetch<Response>(url, { method: 'POST', headers: authHeaders() })
       return response
     } catch (error) {
       console.error('Failed to trigger screening:', error)

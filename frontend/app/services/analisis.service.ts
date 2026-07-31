@@ -1,4 +1,20 @@
-import { api } from '~/utils/api'
+import { $fetch } from 'ofetch'
+
+const SESSION_KEY = 'trackly_session'
+
+function getToken(): string | null {
+    try {
+        const raw = localStorage.getItem(SESSION_KEY)
+        if (!raw) return null
+        const session = JSON.parse(raw)
+        return session?.token || null
+    } catch { return null }
+}
+
+function authHeaders(): Record<string, string> {
+    const token = getToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 export interface TickerSearchResult {
     kode: string
@@ -120,7 +136,7 @@ export class AnalisisService {
         try {
             const baseURL = this.getBaseURL()
             const url = `${baseURL}/api/tickers`
-            const response = await api<{ success: boolean; data: TickerSearchResult[] }>(url, { method: 'GET' })
+            const response = await $fetch<{ success: boolean; data: TickerSearchResult[] }>(url, { method: 'GET', headers: authHeaders() })
             return response.data || []
         } catch (error) {
             console.error('Failed to load tickers:', error)
@@ -132,7 +148,7 @@ export class AnalisisService {
         try {
             const baseURL = this.getBaseURL()
             const url = `${baseURL}/api/ticker/${encodeURIComponent(kode)}`
-            const response = await api<{ success: boolean; data: Snapshot }>(url, { method: 'GET' })
+            const response = await $fetch<{ success: boolean; data: Snapshot }>(url, { method: 'GET', headers: authHeaders() })
             return response.data
         } catch (error) {
             console.error('Failed to get ticker:', error)
@@ -144,9 +160,10 @@ export class AnalisisService {
         try {
             const baseURL = this.getBaseURL()
             const url = `${baseURL}/api/analisis`
-            const response = await api<{ success: boolean; data: AnalisisResult }>(url, {
+            const response = await $fetch<{ success: boolean; data: AnalisisResult }>(url, {
                 method: 'POST',
                 body: { ticker, date_start: dateStart, date_end: dateEnd },
+                headers: authHeaders(),
             })
             return response.data
         } catch (error) {
@@ -158,9 +175,10 @@ export class AnalisisService {
     async postAiInsight(ticker: string, dateEnd: string, indicators: Indicators, snapshot?: Snapshot): Promise<string> {
         const baseURL = this.getBaseURL()
         const url = `${baseURL}/api/analisis/ai-insight`
-        const response = await api<{ success: boolean; data: { ai_insight: string } }>(url, {
+        const response = await $fetch<{ success: boolean; data: { ai_insight: string } }>(url, {
             method: 'POST',
             body: { ticker, date_end: dateEnd, indicators, snapshot },
+            headers: authHeaders(),
         })
         return response.data.ai_insight
     }
